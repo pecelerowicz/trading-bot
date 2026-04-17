@@ -8,3 +8,6 @@ dependencies:
   - matplotlib
   - jupyterlab
   - pytest
+  - pip
+  - pip:
+      - python-binance
