@@ -11,6 +11,8 @@ load_dotenv()
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
 
+USE_MOCK = True
+
 
 async def handle_message(async_client, msg):
     event_time = pd.to_datetime(msg["E"], unit="ms")
@@ -42,15 +44,15 @@ async def handle_message(async_client, msg):
 
     return False
 
+async def handle_message_print(msg):
+    print(msg)
+    return False
+
 
 async def main():
     print("Hello trading bot")
 
-    async_client = await AsyncClient.create(
-        api_key=API_KEY,
-        api_secret=API_SECRET,
-        testnet=True
-    )
+    async_client = await AsyncClient.create(api_key=API_KEY, api_secret=API_SECRET, testnet=True)
 
     bm = BinanceSocketManager(async_client)
     ts = bm.symbol_miniticker_socket(symbol="BTCUSDT")
@@ -59,7 +61,8 @@ async def main():
         async with ts as stream:
             while True:
                 msg = await stream.recv()
-                should_stop = await handle_message(async_client, msg)
+                #should_stop = await handle_message(async_client, msg)
+                should_stop = await handle_message_print(msg)
                 if should_stop:
                     break
     finally:
