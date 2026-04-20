@@ -7,3 +7,5 @@ Data analysis and experimenting
 ```bash
 conda env create -f environment.yml
 conda activate trading-bot
+
+test
