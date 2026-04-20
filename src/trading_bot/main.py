@@ -1,72 +1,26 @@
 from dotenv import load_dotenv
 import os
 import asyncio
-import pandas as pd
 
-from binance import AsyncClient, BinanceSocketManager
-from binance.exceptions import BinanceAPIException, BinanceRequestException
+from trading_bot.apps.binance_app import BinanceApp
+from trading_bot.apps.mock_app import MockApp
 
 load_dotenv()
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
-
 USE_MOCK = True
-
-
-async def handle_message(async_client, msg):
-    event_time = pd.to_datetime(msg["E"], unit="ms")
-    price = float(msg["c"])
-
-    print(f"Time: {event_time} | Price: {price}")
-
-    if int(price) % 10 == 0:
-        try:
-            order = await async_client.create_order(
-                symbol="BTCUSDT",
-                side="SELL",
-                type="MARKET",
-                quantity=0.1
-            )
-
-            print("\n" + "-" * 50)
-            print(
-                f"Sell {order['executedQty']} BTC for {order['cummulativeQuoteQty']} USDT"
-            )
-            print("-" * 50 + "\n")
-
-            return True  # sygnał do zatrzymania streamu
-
-        except (BinanceAPIException, BinanceRequestException) as e:
-            print(f"Order error: {e}")
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-
-    return False
-
-async def handle_message_print(msg):
-    print(msg)
-    return False
 
 
 async def main():
     print("Hello trading bot")
 
-    async_client = await AsyncClient.create(api_key=API_KEY, api_secret=API_SECRET, testnet=True)
+    if USE_MOCK:
+        app = MockApp()
+    else:
+        app = BinanceApp(API_KEY, API_SECRET, "BTCUSDT")
 
-    bm = BinanceSocketManager(async_client)
-    ts = bm.symbol_miniticker_socket(symbol="BTCUSDT")
-
-    try:
-        async with ts as stream:
-            while True:
-                msg = await stream.recv()
-                #should_stop = await handle_message(async_client, msg)
-                should_stop = await handle_message_print(msg)
-                if should_stop:
-                    break
-    finally:
-        await async_client.close_connection()
+    await app.run()
 
 
 if __name__ == "__main__":

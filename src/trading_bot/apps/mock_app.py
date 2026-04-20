@@ -1,5 +1,7 @@
 import asyncio
 
+from trading_bot.handlers import handle_message_print
+
 
 class MockStreamer:
     def __init__(self):
@@ -15,3 +17,9 @@ class MockStreamer:
             should_stop = await message_handler(msg)
             if should_stop:
                 break
+
+
+class MockApp:
+    async def run(self):
+        streamer = MockStreamer()
+        await streamer.stream(handle_message_print)
