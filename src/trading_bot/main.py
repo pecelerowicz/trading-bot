@@ -9,7 +9,7 @@ load_dotenv()
 
 API_KEY = os.getenv("BINANCE_API_KEY")
 API_SECRET = os.getenv("BINANCE_API_SECRET")
-USE_MOCK = True
+USE_MOCK = False
 
 
 async def main():
@@ -18,7 +18,7 @@ async def main():
     if USE_MOCK:
         app = MockApp()
     else:
-        app = BinanceApp(API_KEY, API_SECRET, "BTCUSDT")
+        app = BinanceApp(API_KEY, API_SECRET, "BTCUSDT", '1h')
 
     await app.run()
 
