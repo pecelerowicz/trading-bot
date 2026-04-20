@@ -4,21 +4,36 @@ import asyncio
 
 from trading_bot.apps.binance_app import BinanceApp
 from trading_bot.apps.mock_app import MockApp
+from trading_bot.tools.binance_tools import BinanceBarsRetriever
 
 load_dotenv()
 
-API_KEY = os.getenv("BINANCE_API_KEY")
-API_SECRET = os.getenv("BINANCE_API_SECRET")
-USE_MOCK = False
+api_key = os.getenv("BINANCE_API_KEY")
+api_secret = os.getenv("BINANCE_API_SECRET")
+use_mock = False
 
 
 async def main():
     print("Hello trading bot")
 
-    if USE_MOCK:
+    retriever = BinanceBarsRetriever(api_key=api_key, api_secret=api_secret)
+    klines = retriever.get_klines(
+        symbol="BTCUSDT",
+        interval="1h",
+        initial_date="2024-01-01",
+        final_date="2024-01-02",
+    )
+
+    print("Historical klines:")
+    for kline in klines[:5]:
+        print(kline)
+
+    print("---")
+
+    if use_mock:
         app = MockApp()
     else:
-        app = BinanceApp(API_KEY, API_SECRET, "BTCUSDT", '1h')
+        app = BinanceApp(api_key=api_key, api_secret=api_secret, symbol="BTCUSDT", interval='1h')
 
     await app.run()
 
