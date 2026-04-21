@@ -8,4 +8,4 @@ Data analysis and experimenting
 conda env create -f environment.yml
 conda activate trading-bot
 
-test5
+test6
