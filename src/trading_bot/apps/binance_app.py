@@ -5,30 +5,32 @@ from binance import AsyncClient, BinanceSocketManager
 
 from trading_bot.handlers import handle_message_print
 
-@dataclass
-class KlineEvent:
-    event_time: datetime
-    open_time: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-    is_closed: bool
+from trading_bot.mappers.ws_kline_mapper import map_ws_kline
 
-def map_kline_message(msg: dict) -> KlineEvent:
-    k = msg["k"]
-
-    return KlineEvent(
-        event_time=datetime.fromtimestamp(msg["E"] / 1000, tz=timezone.utc),
-        open_time=datetime.fromtimestamp(k["t"] / 1000, tz=timezone.utc),
-        open=float(k["o"]),
-        high=float(k["h"]),
-        low=float(k["l"]),
-        close=float(k["c"]),
-        volume=float(k["v"]),
-        is_closed=k["x"],
-    )
+# @dataclass
+# class KlineEvent:
+#     event_time: datetime
+#     open_time: datetime
+#     open: float
+#     high: float
+#     low: float
+#     close: float
+#     volume: float
+#     is_closed: bool
+#
+# def map_kline_message(msg: dict) -> KlineEvent:
+#     k = msg["k"]
+#
+#     return KlineEvent(
+#         event_time=datetime.fromtimestamp(msg["E"] / 1000, tz=timezone.utc),
+#         open_time=datetime.fromtimestamp(k["t"] / 1000, tz=timezone.utc),
+#         open=float(k["o"]),
+#         high=float(k["h"]),
+#         low=float(k["l"]),
+#         close=float(k["c"]),
+#         volume=float(k["v"]),
+#         is_closed=k["x"],
+#     )
 
 class BinanceStreamer:
     def __init__(self, async_client, symbol, interval):
@@ -43,7 +45,7 @@ class BinanceStreamer:
         async with ts as stream:
             while True:
                 raw_msg = await stream.recv()
-                msg = map_kline_message(raw_msg)
+                msg = map_ws_kline(raw_msg)
                 should_stop = await message_handler(msg)
                 if should_stop:
                     break
