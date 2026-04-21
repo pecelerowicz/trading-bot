@@ -48,9 +48,7 @@ Thumbs.db
 *.log
 
 # Data (VERY IMPORTANT)
-data/raw/*
-data/processed/*
+data/*
 
-# Keep folders
-!data/raw/.gitkeep
-!data/processed/.gitkeep
+# Keep folder
+!data/.gitkeep
