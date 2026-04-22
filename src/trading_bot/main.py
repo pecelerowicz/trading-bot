@@ -10,7 +10,7 @@ load_dotenv()
 
 api_key = os.getenv("BINANCE_API_KEY")
 api_secret = os.getenv("BINANCE_API_SECRET")
-use_mock = True
+use_mock = os.getenv("USE_MOCK", "false").lower() == "true"
 
 
 async def main():
