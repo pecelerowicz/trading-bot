@@ -2,7 +2,7 @@ from binance.client import Client
 import pandas as pd
 
 
-class BinanceBarsRetriever:
+class BinanceKlinesRetriever:
     def __init__(self, api_key, api_secret):
         self.client = Client(api_key=api_key, api_secret=api_secret)
 
