@@ -10,14 +10,14 @@ load_dotenv()
 
 api_key = os.getenv("BINANCE_API_KEY")
 api_secret = os.getenv("BINANCE_API_SECRET")
-use_mock = False
+use_mock = True
 
 
 async def main():
     print("Hello trading bot")
 
     retriever = BinanceBarsRetriever(api_key=api_key, api_secret=api_secret)
-    klines = retriever.get_klines(
+    klines = retriever.get_raw_klines(
         symbol="BTCUSDT",
         interval="1h",
         initial_date="2024-01-01",
@@ -31,7 +31,8 @@ async def main():
     print("---")
 
     if use_mock:
-        app = MockApp()
+        # TODO it should throw an exception if the data range is not within what is available in the raw data
+        app = MockApp(symbol='BTCUSDT', interval="1h", initial_date="2023-01-01", final_date="2024-01-02", delay_seconds=1.0)
     else:
         app = BinanceApp(api_key=api_key, api_secret=api_secret, symbol="BTCUSDT", interval='1h')
 

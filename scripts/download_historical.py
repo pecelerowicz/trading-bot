@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import json
 import os
 from pathlib import Path
 
@@ -13,32 +14,29 @@ def main():
 
     symbol = "BTCUSDT"
     interval = "1h"
+    initial_date = "2024-01-01"
+    final_date = "2024-01-02"
 
     retriever = BinanceBarsRetriever(api_key=api_key, api_secret=api_secret)
 
-    klines = retriever.get_klines(
+    raw_klines = retriever.get_raw_klines(
         symbol=symbol,
         interval=interval,
-        initial_date="2024-01-01",
-        final_date="2024-01-02",
+        initial_date=initial_date,
+        final_date=final_date,
     )
 
-    # 👇 konwersja na DataFrame (już masz metodę)
-    df = retriever.to_dataframe(klines)
-
-    # 👇 ścieżka do katalogu data (root projektu)
     project_root = Path(__file__).resolve().parents[1]
     data_dir = project_root / "data"
     data_dir.mkdir(exist_ok=True)
 
-    # 👇 nazwa pliku
-    file_name = f"{symbol}_{interval}.csv"
+    file_name = f"{symbol}_{interval}.json"
     file_path = data_dir / file_name
 
-    # 👇 zapis (nadpisuje jeśli istnieje)
-    df.to_csv(file_path, index=False)
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(raw_klines, f, ensure_ascii=False, indent=2)
 
-    print(f"Saved {len(df)} rows to {file_path}")
+    print(f"Saved {len(raw_klines)} raw klines to {file_path}")
 
 
 if __name__ == "__main__":
