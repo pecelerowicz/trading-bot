@@ -3,7 +3,7 @@ import json
 import os
 from pathlib import Path
 
-from trading_bot.tools.binance_tools import BinanceBarsRetriever
+from trading_bot.tools.binance_tools import BinanceKlinesRetriever
 
 
 def main():
@@ -17,7 +17,7 @@ def main():
     initial_date = "2024-01-01"
     final_date = "2024-01-02"
 
-    retriever = BinanceBarsRetriever(api_key=api_key, api_secret=api_secret)
+    retriever = BinanceKlinesRetriever(api_key=api_key, api_secret=api_secret)
 
     raw_klines = retriever.get_raw_klines(
         symbol=symbol,
