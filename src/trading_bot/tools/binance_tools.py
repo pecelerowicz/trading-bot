@@ -15,6 +15,7 @@ class BinanceKlinesRetriever:
             "1d": 86_400_000,
             "4h": 14_400_000,
             "1h": 3_600_000,
+            "1m": 60_000
         }
         if interval not in mapping:
             raise ValueError(f"Unsupported interval: {interval}")

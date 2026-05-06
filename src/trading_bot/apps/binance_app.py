@@ -26,18 +26,19 @@ class BinanceStreamer:
 
 
 class BinanceApp:
-    def __init__(self, api_key, api_secret, symbol, interval, trading_session: TradingSession):
+    def __init__(self, api_key, api_secret, symbol, interval, trading_session: TradingSession, use_production):
         self.api_key = api_key
         self.api_secret = api_secret
         self.symbol = symbol
         self.interval = interval
         self.trading_session = trading_session
+        self.use_production = use_production
 
     async def run(self):
         async_client = await AsyncClient.create(
-            api_key=self.api_key,
-            api_secret=self.api_secret,
-            testnet=True
+            api_key = self.api_key,
+            api_secret = self.api_secret,
+            testnet = not self.use_production
         )
 
         try:
