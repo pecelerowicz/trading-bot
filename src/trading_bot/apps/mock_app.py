@@ -6,6 +6,7 @@ import pandas as pd
 
 from trading_bot.handlers import handle_message_print
 from trading_bot.mappers.rest_kline_mapper import map_rest_kline
+from trading_bot.trading.trading_session import TradingSession
 
 
 class MockStreamer:
@@ -45,7 +46,7 @@ class MockStreamer:
 
         return filtered
 
-    async def stream(self, message_handler):
+    async def stream(self, trading_session: TradingSession):
         raw_klines = self._load_raw_klines()
         filtered_raw_klines = self._filter_raw_klines(raw_klines)
 
@@ -53,21 +54,22 @@ class MockStreamer:
             kline = map_rest_kline(raw_bar)
 
             await asyncio.sleep(self.delay_seconds)
-            should_stop = await message_handler(kline)
+            should_stop = await trading_session.handle_kline(kline)
 
             if should_stop:
                 break
 
 
 class MockApp:
-    def __init__(self, symbol, interval, initial_date, final_date, delay_seconds):
+    def __init__(self, symbol, interval, initial_date, final_date, delay_seconds, trading_session: TradingSession):
         self.symbol = symbol
         self.interval = interval
         self.initial_date = initial_date
         self.final_date = final_date
         self.delay_seconds = delay_seconds
+        self.trading_session = trading_session
 
     async def run(self):
         streamer = MockStreamer(symbol=self.symbol, interval=self.interval, initial_date=self.initial_date,
                                 final_date=self.final_date, delay_seconds=self.delay_seconds)
-        await streamer.stream(handle_message_print)
+        await streamer.stream(trading_session=self.trading_session)

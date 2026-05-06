@@ -13,7 +13,7 @@ def main():
     api_secret = os.getenv("BINANCE_API_SECRET")
 
     symbol = "BTCUSDT"
-    interval = "1h"
+    interval = "1m"
     initial_date = "2024-01-01"
     final_date = "2024-01-02"
 
