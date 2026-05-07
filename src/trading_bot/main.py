@@ -19,8 +19,6 @@ if binance_env not in valid_environments:
 
 api_key = None
 api_secret = None
-#use_mock = binance_env == "mock"
-#use_testnet = binance_env == "testnet"
 
 if binance_env == "mock":
     api_key = None

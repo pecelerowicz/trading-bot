@@ -1,7 +1,5 @@
 from binance import AsyncClient, BinanceSocketManager
 
-from trading_bot.handlers import handle_message_print
-
 from trading_bot.mappers.ws_kline_mapper import map_ws_kline
 from trading_bot.trading.trading_session import TradingSession
 
