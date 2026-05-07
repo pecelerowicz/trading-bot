@@ -1,5 +1,6 @@
 from binance import AsyncClient, BinanceSocketManager
 
+from trading_bot.config import AppConfig
 from trading_bot.mappers.ws_kline_mapper import map_ws_kline
 from trading_bot.trading.trading_session import TradingSession
 
@@ -24,13 +25,14 @@ class BinanceStreamer:
 
 
 class BinanceApp:
-    def __init__(self, api_key, api_secret, symbol, interval, trading_session: TradingSession, use_production):
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.symbol = symbol
-        self.interval = interval
+    def __init__(self, app_config: AppConfig, trading_session: TradingSession):
+        self.api_key = app_config.api_key
+        self.api_secret = app_config.api_secret
+        self.symbol = app_config.symbol
+        self.interval = app_config.interval
+        self.use_production = app_config.is_production
         self.trading_session = trading_session
-        self.use_production = use_production
+        print(app_config.binance_env)
 
     async def run(self):
         async_client = await AsyncClient.create(
