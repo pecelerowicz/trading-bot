@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from trading_bot.config import AppConfig
 from trading_bot.handlers import handle_message_print
 from trading_bot.mappers.rest_kline_mapper import map_rest_kline
 from trading_bot.trading.trading_session import TradingSession
@@ -61,13 +62,14 @@ class MockStreamer:
 
 
 class MockApp:
-    def __init__(self, symbol, interval, initial_date, final_date, delay_seconds, trading_session: TradingSession):
-        self.symbol = symbol
-        self.interval = interval
-        self.initial_date = initial_date
-        self.final_date = final_date
-        self.delay_seconds = delay_seconds
+    def __init__(self, app_config: AppConfig, trading_session: TradingSession):
+        self.symbol = app_config.symbol
+        self.interval = app_config.interval
+        self.initial_date = app_config.mock_initial_date
+        self.final_date = app_config.mock_final_date
+        self.delay_seconds = app_config.mock_delay_seconds
         self.trading_session = trading_session
+        print(app_config.binance_env)
 
     async def run(self):
         streamer = MockStreamer(symbol=self.symbol, interval=self.interval, initial_date=self.initial_date,
