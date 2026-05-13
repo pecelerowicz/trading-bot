@@ -11,13 +11,23 @@ def main():
     # get_balance
     print("--- get_balance ---")
     print(executor.get_balance("SOL"))
+    print(executor.get_balance("USDT"))
 
-    # buy_market_qty
-    print("--- buy_market_qty ---")
-    order = executor.buy_market_qty("SOLUSDT", 1)
-    print(order)
-    print("---")
-    print(executor.get_balance("SOL"))
+    # # buy_market_qty
+    # print("--- buy_market_qty ---")
+    # order = executor.buy_market_qty("SOLUSDT", 1)
+    # print(order)
+    # print("---")
+    # print(executor.get_balance("SOL"))
+    # print(executor.get_balance("USDT"))
+    #
+    # # sell_market_qty
+    # print("--- sell_market_qty ---")
+    # order = executor.sell_market_qty("SOLUSDT", 1)
+    # print(order)
+    # print("---")
+    # print(executor.get_balance("SOL"))
+    # print(executor.get_balance("USDT"))
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-
+#TODO float -> Decimal
 @dataclass
 class KlineEvent:
     event_time: datetime | None
