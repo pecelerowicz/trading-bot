@@ -16,12 +16,13 @@ class OrderResult:
     executed_qty: Decimal
     executed_quote_qty: Decimal
     avg_price: Decimal | None
-    raw: dict[str, Any]
+    raw: dict[str, Any] | None = None
 
 
 class BinanceExecutor:
-    def __init__(self, client):
+    def __init__(self, client, include_raw: bool = False):
         self.client = client
+        self.include_raw = include_raw
 
     def get_balance(self, asset: str, balance_type: BalanceType | None = None) -> dict[str, Any] | Decimal:
         balance = self.client.get_asset_balance(asset=asset)
@@ -84,18 +85,19 @@ class BinanceExecutor:
         quantity = quote / price
         return self.sell_limit_quantity(symbol, quantity, price)
 
-    def get_open_orders(self, symbol: str) -> list[dict[str, Any]]:
-        return self.client.get_open_orders(symbol=symbol)
+    def get_open_orders(self, symbol: str) -> list[OrderResult]:
+        orders = self.client.get_open_orders(symbol=symbol)
+        return [self._map_order(order) for order in orders]
 
-    def cancel_open_orders(self, symbol: str) -> list[dict[str, Any]]:
-        orders = self.get_open_orders(symbol)
+    def cancel_open_orders(self, symbol: str) -> list[OrderResult]:
+        orders = self.client.get_open_orders(symbol=symbol)
         cancelled_orders = []
         for order in orders:
             cancelled_order = self.client.cancel_order(
                 symbol=symbol,
                 orderId=order["orderId"],
             )
-            cancelled_orders.append(cancelled_order)
+            cancelled_orders.append(self._map_order(cancelled_order))
         return cancelled_orders
 
     def get_current_price(self, symbol: str) -> Decimal:
@@ -122,5 +124,5 @@ class BinanceExecutor:
             executed_qty=executed_qty,
             executed_quote_qty=executed_quote_qty,
             avg_price=avg_price,
-            raw=order,
+            raw=order if self.include_raw else None
         )

@@ -19,10 +19,10 @@ def main():
     print("--- get_current_price ---")
     print(executor.get_current_price("SOLUSDT"))
 
-    # buy_limit_quantity
-    print("--- buy_limit_quantity ---")
-    print(executor.buy_limit_quantity("SOLUSDT", Decimal("1"), Decimal("91")))
-    print(executor.sell_limit_quantity("SOLUSDT", Decimal("1"), Decimal("92")))
+    # # buy_limit_quantity
+    # print("--- buy_limit_quantity ---")
+    # print(executor.buy_limit_quantity("SOLUSDT", Decimal("1"), Decimal("91")))
+    # print(executor.sell_limit_quantity("SOLUSDT", Decimal("1"), Decimal("92")))
 
     # get_open_orders
     print("--- get_open_orders ---")
