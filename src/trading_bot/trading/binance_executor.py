@@ -23,7 +23,7 @@ class BinanceExecutor:
     def __init__(self, client):
         self.client = client
 
-    def get_balance(self, asset: str, balance_type: BalanceType | None = None):
+    def get_balance(self, asset: str, balance_type: BalanceType | None = None) -> dict[str, Any] | Decimal:
         balance = self.client.get_asset_balance(asset=asset)
 
         if balance is None:
@@ -84,10 +84,10 @@ class BinanceExecutor:
         quantity = quote / price
         return self.sell_limit_quantity(symbol, quantity, price)
 
-    def get_open_orders(self, symbol: str):
+    def get_open_orders(self, symbol: str) -> list[dict[str, Any]]:
         return self.client.get_open_orders(symbol=symbol)
 
-    def cancel_open_orders(self, symbol: str):
+    def cancel_open_orders(self, symbol: str) -> list[dict[str, Any]]:
         orders = self.get_open_orders(symbol)
         cancelled_orders = []
         for order in orders:
