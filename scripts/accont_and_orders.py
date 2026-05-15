@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from binance import Client
 from trading_bot.config import load_app_config
 from trading_bot.trading.binance_executor import BinanceExecutor
@@ -28,6 +30,10 @@ def main():
     # print("---")
     # print(executor.get_balance("SOL"))
     # print(executor.get_balance("USDT"))
+
+    # executor.sell_market_quantity("SOLUSDT", Decimal("1.10400000"))
+    # print(executor.get_current_price("SOLUSDT"))
+    # executor.get_balance("SOL")
 
 
 if __name__ == "__main__":
