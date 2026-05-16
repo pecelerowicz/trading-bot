@@ -89,15 +89,22 @@ class BinanceExecutor:
         orders = self.client.get_open_orders(symbol=symbol)
         return [self._map_order(order) for order in orders]
 
+    def cancel_order(self, symbol: str, order_id: int) -> OrderResult:
+        cancelled_order = self.client.cancel_order(
+            symbol=symbol,
+            orderId=order_id,
+        )
+        return self._map_order(cancelled_order)
+
     def cancel_open_orders(self, symbol: str) -> list[OrderResult]:
         orders = self.client.get_open_orders(symbol=symbol)
         cancelled_orders = []
+
         for order in orders:
-            cancelled_order = self.client.cancel_order(
-                symbol=symbol,
-                orderId=order["orderId"],
+            cancelled_orders.append(
+                self.cancel_order(symbol=symbol, order_id=order["orderId"])
             )
-            cancelled_orders.append(self._map_order(cancelled_order))
+
         return cancelled_orders
 
     def get_current_price(self, symbol: str) -> Decimal:

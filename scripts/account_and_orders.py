@@ -21,13 +21,17 @@ def main():
 
     # # buy_limit_quantity
     # print("--- buy_limit_quantity ---")
-    # print(executor.buy_limit_quantity("SOLUSDT", Decimal("1"), Decimal("91")))
-    # print(executor.sell_limit_quantity("SOLUSDT", Decimal("1"), Decimal("92")))
+    # print(executor.buy_limit_quantity("SOLUSDT", Decimal("1"), Decimal("90.7")))
+    # print(executor.sell_limit_quantity("SOLUSDT", Decimal("1"), Decimal("90.9")))
 
     # get_open_orders
     print("--- get_open_orders ---")
     print(executor.get_open_orders("SOLUSDT"))
 
+    # get_balance
+    print("--- get_balance ---")
+    print(executor.get_balance("SOL"))
+    print(executor.get_balance("USDT"))
 
 if __name__ == "__main__":
     main()
