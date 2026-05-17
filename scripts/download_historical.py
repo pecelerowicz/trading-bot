@@ -1,9 +1,10 @@
+from binance import Client
 from dotenv import load_dotenv
 import json
 import os
 from pathlib import Path
 
-from trading_bot.tools.binance_tools import BinanceKlinesRetriever
+from trading_bot.tools.binance_tools import BinanceMarketDataRetriever
 
 
 def main():
@@ -11,13 +12,14 @@ def main():
 
     api_key = os.getenv("BINANCE_API_KEY")
     api_secret = os.getenv("BINANCE_API_SECRET")
+    client = Client(api_key=api_key, api_secret=api_secret)
 
     symbol = "BTCUSDT"
     interval = "1m"
     initial_date = "2024-01-01"
     final_date = "2024-01-02"
 
-    retriever = BinanceKlinesRetriever(api_key=api_key, api_secret=api_secret)
+    retriever = BinanceMarketDataRetriever(client=client)
 
     raw_klines = retriever.get_raw_klines(
         symbol=symbol,

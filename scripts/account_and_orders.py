@@ -1,14 +1,14 @@
-from decimal import Decimal
-
 from binance import Client
 from trading_bot.config import load_app_config
-from trading_bot.trading.binance_executor import BinanceExecutor
+from trading_bot.tools.binance_tools import BinanceMarketDataRetriever, BinanceOrderExecutor
+
 
 def main():
 
     app_config = load_app_config()
     client = Client(api_key=app_config.api_key, api_secret=app_config.api_secret, testnet=app_config.is_testnet) # tu już jest problem, bo dla mock wybierze production
-    executor = BinanceExecutor(client)
+    executor = BinanceOrderExecutor(client=client)
+    retriever = BinanceMarketDataRetriever(client=client)
 
     # get_balance
     print("--- get_balance ---")
@@ -17,7 +17,7 @@ def main():
 
     # get_current_price
     print("--- get_current_price ---")
-    print(executor.get_current_price("SOLUSDT"))
+    print(retriever.get_current_price("SOLUSDT"))
 
     # # buy_limit_quantity
     # print("--- buy_limit_quantity ---")
