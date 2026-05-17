@@ -2,7 +2,7 @@ import asyncio
 
 from trading_bot.apps.binance_app import BinanceApp
 from trading_bot.apps.mock_app import MockApp
-from trading_bot.config import load_app_config, AppConfig
+from trading_bot.config import load_app_config
 from trading_bot.trading.trading_session import TradingSession
 from trading_bot.trading.paper_executor import PaperExecutor
 from trading_bot.trading.green_red_strategy import GreenRedStrategy
