@@ -1,7 +1,6 @@
 import asyncio
 
-from trading_bot.apps.binance_app import BinanceApp
-from trading_bot.apps.mock_app import MockApp
+from trading_bot.apps.trading_app import TradingApp, BinanceMarketDataSource, LocalMarketDataSource
 from trading_bot.config import load_app_config
 from trading_bot.trading.trading_session import TradingSession
 from trading_bot.trading.paper_executor import PaperExecutor
@@ -10,15 +9,36 @@ from trading_bot.trading.green_red_strategy import GreenRedStrategy
 
 async def main():
     app_config = load_app_config()
+
     strategy = GreenRedStrategy()
     executor = PaperExecutor()
 
-    trading_session = TradingSession(strategy=strategy, executor=executor)
+    trading_session = TradingSession(
+        strategy=strategy,
+        executor=executor,
+    )
 
     if app_config.is_mock:
-        app = MockApp(app_config=app_config, trading_session=trading_session)
+        market_data_source = LocalMarketDataSource(
+            symbol=app_config.symbol,
+            interval=app_config.interval,
+            initial_date=app_config.mock_initial_date,
+            final_date=app_config.mock_final_date,
+            delay_seconds=app_config.mock_delay_seconds,
+        )
     else:
-        app = BinanceApp(app_config=app_config, trading_session=trading_session)
+        market_data_source = BinanceMarketDataSource(
+            api_key=app_config.api_key,
+            api_secret=app_config.api_secret,
+            testnet=not app_config.is_production,
+            symbol=app_config.symbol,
+            interval=app_config.interval,
+        )
+
+    app = TradingApp(
+        market_data_source=market_data_source,
+        trading_session=trading_session,
+    )
 
     await app.run()
 
