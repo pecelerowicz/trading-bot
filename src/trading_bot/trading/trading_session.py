@@ -1,4 +1,4 @@
-from trading_bot.trading.paper_executor import ExecutionResult, PaperExecutor
+from trading_bot.adapters.execution.paper.paper_executor import ExecutionResult
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.position_state import PositionState
 
