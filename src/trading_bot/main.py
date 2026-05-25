@@ -1,6 +1,8 @@
 import asyncio
 
-from trading_bot.apps.trading_app import TradingApp, BinanceMarketDataSource, LocalMarketDataSource
+from trading_bot.adapters.binance.stream import BinanceMarketDataSource
+from trading_bot.adapters.replay.stream import LocalMarketDataSource
+from trading_bot.app.trading_app import TradingApp
 from trading_bot.config import load_app_config
 from trading_bot.trading.trading_session import TradingSession
 from trading_bot.trading.paper_executor import PaperExecutor
