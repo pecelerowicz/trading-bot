@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from trading_bot.tools.binance_tools import BinanceMarketDataRetriever
+from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
 
 
 def main():
@@ -19,7 +19,7 @@ def main():
     initial_date = "2024-01-01"
     final_date = "2024-01-02"
 
-    retriever = BinanceMarketDataRetriever(client=client)
+    retriever = BinanceMarketDataApi(client=client)
 
     raw_klines = retriever.get_raw_klines(
         symbol=symbol,

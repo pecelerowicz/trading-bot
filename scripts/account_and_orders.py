@@ -1,14 +1,16 @@
 from binance import Client
+
+from trading_bot.adapters.execution.binance.api import BinanceOrderApi
+from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
 from trading_bot.config import load_app_config
-from trading_bot.tools.binance_tools import BinanceMarketDataRetriever, BinanceOrderExecutor
 
 
 def main():
 
     app_config = load_app_config()
     client = Client(api_key=app_config.api_key, api_secret=app_config.api_secret, testnet=app_config.is_testnet) # tu już jest problem, bo dla mock wybierze production
-    executor = BinanceOrderExecutor(client=client)
-    retriever = BinanceMarketDataRetriever(client=client)
+    executor = BinanceOrderApi(client=client)
+    retriever = BinanceMarketDataApi(client=client)
 
     # get_balance
     print("--- get_balance ---")
