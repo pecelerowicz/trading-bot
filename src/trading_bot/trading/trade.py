@@ -9,12 +9,24 @@ class Trade:
     orders: list[Order]
 
     @property
-    def filled_quantity(self) -> float:
-        return sum(order.filled_quantity for order in self.orders)
+    def buy_filled_quantity(self) -> float:
+        return sum(
+            order.filled_quantity
+            for order in self.orders
+            if order.request.side == "BUY"
+        )
 
     @property
-    def has_any_fill(self) -> bool:
-        return self.filled_quantity > 0
+    def sell_filled_quantity(self) -> float:
+        return sum(
+            order.filled_quantity
+            for order in self.orders
+            if order.request.side == "SELL"
+        )
+
+    @property
+    def net_quantity(self) -> float:
+        return self.buy_filled_quantity - self.sell_filled_quantity
 
     @property
     def has_open_orders(self) -> bool:
@@ -22,3 +34,7 @@ class Trade:
             order.status in {"NEW", "PARTIALLY_FILLED"}
             for order in self.orders
         )
+
+    @property
+    def is_flat(self) -> bool:
+        return self.net_quantity <= 0

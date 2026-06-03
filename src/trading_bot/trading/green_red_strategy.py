@@ -1,6 +1,6 @@
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import OrderRequest
-from trading_bot.trading.signal import ExitTrade, StartTrade, StrategyResult
+from trading_bot.trading.signal import StrategyAction
 from trading_bot.trading.trade import Trade
 
 
@@ -10,9 +10,9 @@ class GreenRedStrategy:
         kline: KlineEvent,
         klines: list[KlineEvent],
         current_trade: Trade | None,
-    ) -> StrategyResult:
+    ) -> StrategyAction:
         if current_trade is None and kline.close > kline.open:
-            return StartTrade(
+            return StrategyAction(
                 reason="Green candle and no current trade",
                 order_requests=[
                     OrderRequest(
@@ -24,8 +24,21 @@ class GreenRedStrategy:
             )
 
         if current_trade is not None and kline.close < kline.open:
-            return ExitTrade(
-                reason="Red candle and current trade exists",
-            )
+            quantity_to_sell = current_trade.net_quantity
 
-        return None
+            if quantity_to_sell > 0:
+                return StrategyAction(
+                    reason="Red candle and current trade exists",
+                    order_requests=[
+                        OrderRequest(
+                            side="SELL",
+                            order_type="MARKET",
+                            quantity=quantity_to_sell,
+                        )
+                    ],
+                )
+
+        return StrategyAction(
+            reason="No action",
+            order_requests=[],
+        )
