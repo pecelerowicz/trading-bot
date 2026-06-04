@@ -1,6 +1,5 @@
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.trading.order import Order, OrderRequest
-from trading_bot.trading.signal import StrategyAction
+from trading_bot.trading.signal import CloseTrade, ModifyTrade, NoAction, OpenTrade
 from trading_bot.trading.trade import Trade
 
 
@@ -17,84 +16,65 @@ class TradingSession:
 
         self.klines.append(kline)
 
-        if self.current_trade is not None:
-            self.current_trade.orders = await self.executor.refresh_orders(
-                orders=self.current_trade.orders,
-                kline=kline,
-            )
+        # TODO: In the future, executor will refresh current trade orders here.
 
-            if self._should_close_current_trade():
-                print("Trade completed")
-                self.current_trade = None
-
-        action = self.strategy.on_kline(
+        signal = self.strategy.on_kline(
             kline=kline,
             klines=self.klines,
             current_trade=self.current_trade,
         )
 
-        print(action)
+        print(signal)
 
-        if not action.has_orders:
+        if isinstance(signal, OpenTrade):
+            self._open_trade(signal)
             return False
 
-        await self._handle_strategy_action(
-            action=action,
-            kline=kline,
-        )
+        if isinstance(signal, ModifyTrade):
+            self._modify_trade(signal)
+            return False
+
+        if isinstance(signal, CloseTrade):
+            self._close_trade(signal)
+            return False
+
+        if isinstance(signal, NoAction):
+            return False
 
         return False
 
-    async def _handle_strategy_action(
-        self,
-        action: StrategyAction,
-        kline: KlineEvent,
-    ) -> None:
-        created_orders = await self._place_orders(
-            order_requests=action.order_requests,
-            kline=kline,
-        )
-
-        if self.current_trade is None:
-            self.current_trade = Trade(
-                reason=action.reason,
-                orders=created_orders,
-            )
-
-            print(f"Trade started: {self.current_trade.reason}")
+    def _open_trade(self, signal: OpenTrade) -> None:
+        if self.current_trade is not None:
+            print("OpenTrade ignored: current trade already exists")
             return
 
-        self.current_trade.orders.extend(created_orders)
-        print(f"Added orders to current trade: {len(created_orders)}")
+        self.current_trade = Trade(
+            orders=[],
+            is_open=True,
+        )
 
-        if self._should_close_current_trade():
-            print("Trade completed")
-            self.current_trade = None
+        print(f"Trade opened with {len(signal.order_requests)} requested orders")
 
-    async def _place_orders(
-        self,
-        order_requests: list[OrderRequest],
-        kline: KlineEvent,
-    ) -> list[Order]:
-        orders = []
-
-        for order_request in order_requests:
-            order = await self.executor.place_order(
-                order_request=order_request,
-                kline=kline,
-            )
-            orders.append(order)
-
-        return orders
-
-    def _should_close_current_trade(self) -> bool:
+    def _modify_trade(self, signal: ModifyTrade) -> None:
         if self.current_trade is None:
-            return False
+            print("ModifyTrade ignored: no current trade")
+            return
 
-        if self.current_trade.has_open_orders:
-            return False
+        print(
+            f"Trade modification requested: "
+            f"{len(signal.order_requests)} new orders, "
+            f"{len(signal.order_ids_to_cancel)} orders to cancel"
+        )
 
-        if self.current_trade.net_quantity > 0:
-            return False
+    def _close_trade(self, signal: CloseTrade) -> None:
+        if self.current_trade is None:
+            print("CloseTrade ignored: no current trade")
+            return
 
-        return True
+        self.current_trade.is_open = False
+        self.current_trade = None
+
+        print(
+            f"Trade closed with {len(signal.order_requests)} requested close orders "
+            f"and {len(signal.order_ids_to_cancel)} orders to cancel"
+        )

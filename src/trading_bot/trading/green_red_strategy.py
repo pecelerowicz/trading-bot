@@ -1,6 +1,12 @@
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import OrderRequest
-from trading_bot.trading.signal import StrategyAction
+from trading_bot.trading.signal import (
+    CloseTrade,
+    ModifyTrade,
+    NoAction,
+    OpenTrade,
+    StrategySignal,
+)
 from trading_bot.trading.trade import Trade
 
 
@@ -10,35 +16,63 @@ class GreenRedStrategy:
         kline: KlineEvent,
         klines: list[KlineEvent],
         current_trade: Trade | None,
-    ) -> StrategyAction:
-        if current_trade is None and kline.close > kline.open:
-            return StrategyAction(
-                reason="Green candle and no current trade",
+    ) -> StrategySignal:
+        if current_trade is None:
+            if kline.close > kline.open:
+                return OpenTrade(
+                    order_requests=[
+                        OrderRequest(
+                            side="BUY",
+                            order_type="LIMIT",
+                            quantity=1.0,
+                            price=kline.close * 0.99,
+                        ),
+                        OrderRequest(
+                            side="BUY",
+                            order_type="LIMIT",
+                            quantity=1.0,
+                            price=kline.close * 0.98,
+                        ),
+                    ]
+                )
+
+            return NoAction()
+
+        if kline.close > kline.open:
+            open_order_ids = [
+                order.order_id
+                for order in current_trade.orders
+                if order.status in {"NEW", "PARTIALLY_FILLED"}
+            ]
+
+            return ModifyTrade(
+                order_ids_to_cancel=open_order_ids,
                 order_requests=[
                     OrderRequest(
                         side="BUY",
+                        order_type="LIMIT",
+                        quantity=1.0,
+                        price=kline.close * 0.97,
+                    )
+                ],
+            )
+
+        if kline.close < kline.open:
+            open_order_ids = [
+                order.order_id
+                for order in current_trade.orders
+                if order.status in {"NEW", "PARTIALLY_FILLED"}
+            ]
+
+            return CloseTrade(
+                order_ids_to_cancel=open_order_ids,
+                order_requests=[
+                    OrderRequest(
+                        side="SELL",
                         order_type="MARKET",
                         quantity=1.0,
                     )
                 ],
             )
 
-        if current_trade is not None and kline.close < kline.open:
-            quantity_to_sell = current_trade.net_quantity
-
-            if quantity_to_sell > 0:
-                return StrategyAction(
-                    reason="Red candle and current trade exists",
-                    order_requests=[
-                        OrderRequest(
-                            side="SELL",
-                            order_type="MARKET",
-                            quantity=quantity_to_sell,
-                        )
-                    ],
-                )
-
-        return StrategyAction(
-            reason="No action",
-            order_requests=[],
-        )
+        return NoAction()
