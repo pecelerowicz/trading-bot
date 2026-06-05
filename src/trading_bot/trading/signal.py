@@ -16,14 +16,8 @@ class CloseTrade:
 
 
 @dataclass(frozen=True)
-class ModifyTrade:
-    order_requests: list[OrderRequest] = field(default_factory=list)
-    order_ids_to_cancel: list[str] = field(default_factory=list)
-
-
-@dataclass(frozen=True)
 class NoAction:
     pass
 
 
-StrategySignal: TypeAlias = OpenTrade | CloseTrade | ModifyTrade | NoAction
+StrategySignal: TypeAlias = OpenTrade | CloseTrade | NoAction

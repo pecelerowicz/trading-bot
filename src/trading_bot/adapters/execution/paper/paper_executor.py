@@ -31,7 +31,7 @@ class PaperExecutor:
             average_fill_price=None,
         )
 
-    async def refresh_orders(
+    async def sync_order_statuses(
         self,
         orders: list[Order],
         kline: KlineEvent,
@@ -62,5 +62,19 @@ class PaperExecutor:
                 order.status = "FILLED"
                 order.filled_quantity = request.quantity
                 order.average_fill_price = request.price
+
+        return orders
+
+    async def cancel_orders(
+        self,
+        orders: list[Order],
+        order_ids_to_cancel: list[str],
+    ) -> list[Order]:
+        for order in orders:
+            if order.order_id not in order_ids_to_cancel:
+                continue
+
+            if order.status in {"NEW", "PARTIALLY_FILLED"}:
+                order.status = "CANCELED"
 
         return orders

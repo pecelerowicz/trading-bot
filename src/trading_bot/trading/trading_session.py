@@ -1,5 +1,6 @@
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.trading.signal import CloseTrade, ModifyTrade, NoAction, OpenTrade
+from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.trading.signal import CloseTrade, NoAction, OpenTrade
 from trading_bot.trading.trade import Trade
 
 
@@ -16,7 +17,11 @@ class TradingSession:
 
         self.klines.append(kline)
 
-        # TODO: In the future, executor will refresh current trade orders here.
+        if self.current_trade is not None:
+            self.current_trade.orders = await self.executor.sync_order_statuses(
+                orders=self.current_trade.orders,
+                kline=kline,
+            )
 
         signal = self.strategy.on_kline(
             kline=kline,
@@ -27,15 +32,11 @@ class TradingSession:
         print(signal)
 
         if isinstance(signal, OpenTrade):
-            self._open_trade(signal)
-            return False
-
-        if isinstance(signal, ModifyTrade):
-            self._modify_trade(signal)
+            await self._open_trade(signal, kline)
             return False
 
         if isinstance(signal, CloseTrade):
-            self._close_trade(signal)
+            await self._close_trade(signal, kline)
             return False
 
         if isinstance(signal, NoAction):
@@ -43,38 +44,64 @@ class TradingSession:
 
         return False
 
-    def _open_trade(self, signal: OpenTrade) -> None:
+    async def _open_trade(self, signal: OpenTrade, kline: KlineEvent) -> None:
         if self.current_trade is not None:
             print("OpenTrade ignored: current trade already exists")
             return
 
+        orders = await self._place_orders(
+            order_requests=signal.order_requests,
+            kline=kline,
+        )
+
         self.current_trade = Trade(
-            orders=[],
+            orders=orders,
             is_open=True,
         )
 
-        print(f"Trade opened with {len(signal.order_requests)} requested orders")
+        print(f"Trade opened with {len(orders)} orders")
 
-    def _modify_trade(self, signal: ModifyTrade) -> None:
-        if self.current_trade is None:
-            print("ModifyTrade ignored: no current trade")
-            return
-
-        print(
-            f"Trade modification requested: "
-            f"{len(signal.order_requests)} new orders, "
-            f"{len(signal.order_ids_to_cancel)} orders to cancel"
-        )
-
-    def _close_trade(self, signal: CloseTrade) -> None:
+    async def _close_trade(self, signal: CloseTrade, kline: KlineEvent) -> None:
         if self.current_trade is None:
             print("CloseTrade ignored: no current trade")
             return
+
+        self.current_trade.orders = await self.executor.cancel_orders(
+            orders=self.current_trade.orders,
+            order_ids_to_cancel=signal.order_ids_to_cancel,
+        )
+
+        close_orders = await self._place_orders(
+            order_requests=signal.order_requests,
+            kline=kline,
+        )
+
+        self.current_trade.orders.extend(close_orders)
 
         self.current_trade.is_open = False
         self.current_trade = None
 
         print(
-            f"Trade closed with {len(signal.order_requests)} requested close orders "
-            f"and {len(signal.order_ids_to_cancel)} orders to cancel"
+            f"Trade closed with {len(close_orders)} close orders "
+            f"and {len(signal.order_ids_to_cancel)} canceled orders"
         )
+
+    async def _place_orders(
+        self,
+        order_requests: list[OrderRequest],
+        kline: KlineEvent,
+    ) -> list[Order]:
+        orders: list[Order] = []
+
+        for order_request in order_requests:
+            if order_request.quantity <= 0:
+                print(f"Ignored order with non-positive quantity: {order_request}")
+                continue
+
+            order = await self.executor.place_order(
+                order_request=order_request,
+                kline=kline,
+            )
+            orders.append(order)
+
+        return orders
