@@ -63,6 +63,15 @@ class PaperExecutor:
                 order.filled_quantity = request.quantity
                 order.average_fill_price = request.price
 
+                # Logowanie wypełnienia limit ordera
+                side_emoji = "🟢" if request.side == "BUY" else "🔴"
+                print(
+                    f"   {side_emoji} LIMIT FILLED → {request.side} {request.quantity} "
+                    f"@ {request.price:.4f} | "
+                    f"kline {kline.open_time.strftime('%H:%M')} "
+                    f"(high={kline.high:.4f}, low={kline.low:.4f})"
+                )
+
         return orders
 
     async def cancel_orders(

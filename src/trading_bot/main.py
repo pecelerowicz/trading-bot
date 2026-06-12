@@ -2,6 +2,7 @@ import asyncio
 
 from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
 from trading_bot.adapters.market_data.binance.data_replay.stream import LocalMarketDataSource
+from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyramidSellStrategy
 from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
 from trading_bot.trading.trading_session import TradingSession
@@ -12,7 +13,8 @@ from trading_bot.trading.green_red_strategy import GreenRedStrategy
 async def main():
     app_config = load_app_config()
 
-    strategy = GreenRedStrategy()
+    # strategy = GreenRedStrategy()
+    strategy = ThreeGreenPyramidSellStrategy()
     executor = PaperExecutor()
 
     trading_session = TradingSession(

@@ -15,6 +15,26 @@ class TradingSession:
         if not kline.is_closed:
             return False
 
+        # === DEBUG: Print current kline info (TradingView-style) ===
+        if abs(kline.close - kline.open) < 0.0001:
+            color = "⚪ DOJI"
+        elif kline.close > kline.open:
+            color = "🟢 GREEN"
+        else:
+            color = "🔴 RED"
+
+        price_change_pct = (kline.close - kline.open) / kline.open * 100 if kline.open != 0 else 0
+
+        print()
+        print(
+            f"{kline.open_time.strftime('%Y-%m-%d %H:%M')} | "
+            f"{color} | "
+            f"O:{kline.open:.4f} H:{kline.high:.4f} L:{kline.low:.4f} C:{kline.close:.4f} | "
+            f"Change: {price_change_pct:+.3f}% | "
+            f"Vol: {kline.volume:,.0f}"
+        )
+        # ========================================================
+
         self.klines.append(kline)
 
         if self.current_trade is not None:
@@ -29,7 +49,7 @@ class TradingSession:
             current_trade=self.current_trade,
         )
 
-        print(signal)
+        #print(signal)
 
         if isinstance(signal, OpenTrade):
             await self._open_trade(signal, kline)
