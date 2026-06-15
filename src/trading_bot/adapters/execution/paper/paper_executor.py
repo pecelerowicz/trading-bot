@@ -1,10 +1,12 @@
 from trading_bot.models.kline_event import KlineEvent
+from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.order import Order, OrderRequest
 
 
 class PaperExecutor:
-    def __init__(self) -> None:
+    def __init__(self, debug_logger: TradingDebugLogger | None = None) -> None:
         self._next_order_id = 1
+        self.debug_logger = debug_logger
 
     async def place_order(
         self,
@@ -63,14 +65,8 @@ class PaperExecutor:
                 order.filled_quantity = request.quantity
                 order.average_fill_price = request.price
 
-                # Logowanie wypełnienia limit ordera
-                side_emoji = "🟢" if request.side == "BUY" else "🔴"
-                print(
-                    f"   {side_emoji} LIMIT FILLED → {request.side} {request.quantity} "
-                    f"@ {request.price:.4f} | "
-                    f"kline {kline.open_time.strftime('%H:%M')} "
-                    f"(high={kline.high:.4f}, low={kline.low:.4f})"
-                )
+                if self.debug_logger is not None:
+                    self.debug_logger.fill_limit_order(order, kline)
 
         return orders
 

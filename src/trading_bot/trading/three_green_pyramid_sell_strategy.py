@@ -31,7 +31,6 @@ class ThreeGreenPyramidSellStrategy:
                 )
 
                 if is_two_consecutive_red:
-                    print("   → Closing trade: 2 consecutive red candles detected")
                     return CloseTrade(
                         order_requests=[
                             OrderRequest(
@@ -61,8 +60,6 @@ class ThreeGreenPyramidSellStrategy:
 
         if not is_three_consecutive_green:
             return NoAction()
-
-        print("   → Opening trade: 3 consecutive green candles detected")
 
         # Build pyramid sell orders
         current_close = kline.close

@@ -1,13 +1,20 @@
 from trading_bot.models.kline_event import KlineEvent
+from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.order import Order, OrderRequest
 from trading_bot.trading.signal import CloseTrade, NoAction, OpenTrade
 from trading_bot.trading.trade import Trade
 
 
 class TradingSession:
-    def __init__(self, strategy, executor) -> None:
+    def __init__(
+        self,
+        strategy,
+        executor,
+        debug_logger: TradingDebugLogger | None = None,
+    ) -> None:
         self.strategy = strategy
         self.executor = executor
+        self.debug_logger = debug_logger
         self.klines: list[KlineEvent] = []
         self.current_trade: Trade | None = None
 
@@ -15,25 +22,8 @@ class TradingSession:
         if not kline.is_closed:
             return False
 
-        # === DEBUG: Print current kline info (TradingView-style) ===
-        if abs(kline.close - kline.open) < 0.0001:
-            color = "⚪ DOJI"
-        elif kline.close > kline.open:
-            color = "🟢 GREEN"
-        else:
-            color = "🔴 RED"
-
-        price_change_pct = (kline.close - kline.open) / kline.open * 100 if kline.open != 0 else 0
-
-        print()
-        print(
-            f"{kline.open_time.strftime('%Y-%m-%d %H:%M')} | "
-            f"{color} | "
-            f"O:{kline.open:.4f} H:{kline.high:.4f} L:{kline.low:.4f} C:{kline.close:.4f} | "
-            f"Change: {price_change_pct:+.3f}% | "
-            f"Vol: {kline.volume:,.0f}"
-        )
-        # ========================================================
+        if self.debug_logger is not None:
+            self.debug_logger.candle(kline)
 
         self.klines.append(kline)
 
@@ -49,24 +39,34 @@ class TradingSession:
             current_trade=self.current_trade,
         )
 
-        #print(signal)
-
         if isinstance(signal, OpenTrade):
+            if self.debug_logger is not None:
+                self.debug_logger.signal("OpenTrade")
             await self._open_trade(signal, kline)
             return False
 
         if isinstance(signal, CloseTrade):
+            if self.debug_logger is not None:
+                self.debug_logger.signal("CloseTrade")
             await self._close_trade(signal, kline)
             return False
 
         if isinstance(signal, NoAction):
+            if self.debug_logger is not None:
+                self.debug_logger.signal("NoAction")
             return False
+
+        if self.debug_logger is not None:
+            self.debug_logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
 
         return False
 
     async def _open_trade(self, signal: OpenTrade, kline: KlineEvent) -> None:
         if self.current_trade is not None:
-            print("OpenTrade ignored: current trade already exists")
+            if self.debug_logger is not None:
+                self.debug_logger.trade(
+                    "Open signal ignored: current trade already exists"
+                )
             return
 
         orders = await self._place_orders(
@@ -79,11 +79,13 @@ class TradingSession:
             is_open=True,
         )
 
-        print(f"Trade opened with {len(orders)} orders")
+        if self.debug_logger is not None:
+            self.debug_logger.trade(f"Opened trade with {len(orders)} orders")
 
     async def _close_trade(self, signal: CloseTrade, kline: KlineEvent) -> None:
         if self.current_trade is None:
-            print("CloseTrade ignored: no current trade")
+            if self.debug_logger is not None:
+                self.debug_logger.trade("Close signal ignored: no current trade")
             return
 
         self.current_trade.orders = await self.executor.cancel_orders(
@@ -97,14 +99,19 @@ class TradingSession:
         )
 
         self.current_trade.orders.extend(close_orders)
-
         self.current_trade.is_open = False
-        self.current_trade = None
 
-        print(
-            f"Trade closed with {len(close_orders)} close orders "
-            f"and {len(signal.order_ids_to_cancel)} canceled orders"
-        )
+        if self.debug_logger is not None:
+            self.debug_logger.trade("Closed trade")
+            self.debug_logger.trade(
+                f"Close orders placed: {len(close_orders)}"
+            )
+            self.debug_logger.trade(
+                f"Orders canceled: {len(signal.order_ids_to_cancel)}"
+            )
+            self.debug_logger.trade_orders(self.current_trade.orders)
+
+        self.current_trade = None
 
     async def _place_orders(
         self,
@@ -115,7 +122,11 @@ class TradingSession:
 
         for order_request in order_requests:
             if order_request.quantity <= 0:
-                print(f"Ignored order with non-positive quantity: {order_request}")
+                if self.debug_logger is not None:
+                    self.debug_logger.order(
+                        f"Ignored order request: non-positive quantity "
+                        f"({order_request.quantity})"
+                    )
                 continue
 
             order = await self.executor.place_order(

@@ -2,6 +2,7 @@ import asyncio
 
 from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
 from trading_bot.adapters.market_data.binance.data_replay.stream import LocalMarketDataSource
+from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyramidSellStrategy
 from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
@@ -15,11 +16,14 @@ async def main():
 
     # strategy = GreenRedStrategy()
     strategy = ThreeGreenPyramidSellStrategy()
-    executor = PaperExecutor()
+    debug_logger = TradingDebugLogger()
+
+    executor = PaperExecutor(debug_logger=debug_logger)
 
     trading_session = TradingSession(
         strategy=strategy,
         executor=executor,
+        debug_logger=debug_logger,
     )
 
     if app_config.is_mock:
