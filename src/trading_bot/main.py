@@ -8,13 +8,11 @@ from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
 from trading_bot.trading.trading_session import TradingSession
 from trading_bot.adapters.execution.paper.paper_executor import PaperExecutor
-from trading_bot.trading.green_red_strategy import GreenRedStrategy
 
 
 async def main():
     app_config = load_app_config()
 
-    # strategy = GreenRedStrategy()
     strategy = ThreeGreenPyramidSellStrategy()
     debug_logger = TradingDebugLogger()
 

@@ -81,6 +81,7 @@ class TradingSession:
 
         if self.debug_logger is not None:
             self.debug_logger.trade(f"Opened trade with {len(orders)} orders")
+            self.debug_logger.trade_orders(self.current_trade.orders)
 
     async def _close_trade(self, signal: CloseTrade, kline: KlineEvent) -> None:
         if self.current_trade is None:

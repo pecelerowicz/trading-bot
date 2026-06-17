@@ -16,14 +16,22 @@ class PaperExecutor:
         order_id = str(self._next_order_id)
         self._next_order_id += 1
 
+        if self.debug_logger is not None:
+            self.debug_logger.place_order(order_id, order_request)
+
         if order_request.order_type == "MARKET":
-            return Order(
+            order = Order(
                 order_id=order_id,
                 request=order_request,
                 status="FILLED",
                 filled_quantity=order_request.quantity,
                 average_fill_price=kline.close,
             )
+
+            if self.debug_logger is not None:
+                self.debug_logger.fill_market_order(order, kline)
+
+            return order
 
         return Order(
             order_id=order_id,
@@ -81,5 +89,8 @@ class PaperExecutor:
 
             if order.status in {"NEW", "PARTIALLY_FILLED"}:
                 order.status = "CANCELED"
+
+                if self.debug_logger is not None:
+                    self.debug_logger.cancel_order(order)
 
         return orders
