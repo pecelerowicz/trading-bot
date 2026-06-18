@@ -16,8 +16,8 @@ def main():
 
     symbol = "SOLUSDT"
     interval = "1h"
-    initial_date = "2024-01-01"
-    final_date = "2024-01-02"
+    initial_date = "2026-01-01"
+    final_date = "2027-01-01"
 
     retriever = BinanceMarketDataApi(client=client)
 
