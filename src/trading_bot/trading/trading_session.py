@@ -88,12 +88,6 @@ class TradingSession:
         orders: list[Order] = []
 
         for order_request in order_requests:
-            if order_request.quantity <= 0:
-                self.logger.order(
-                    f"Ignored order request: non-positive quantity ({order_request.quantity})"
-                )
-                continue
-
             order = await self.executor.place_order(order_request=order_request, kline=kline)
             orders.append(order)
 
