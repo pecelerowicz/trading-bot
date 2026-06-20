@@ -6,10 +6,10 @@ from trading_bot.trading.trade import Trade
 
 
 class TradingSession:
-    def __init__(self, strategy, executor, debug_logger: TradingDebugLogger) -> None:
+    def __init__(self, strategy, executor, logger: TradingDebugLogger) -> None:
         self.strategy = strategy
         self.executor = executor
-        self.debug_logger = debug_logger
+        self.logger = logger
         self.klines: list[KlineEvent] = []
         self.current_trade: Trade | None = None
 
@@ -17,27 +17,27 @@ class TradingSession:
         if not kline.is_closed:
             return False
 
-        self.debug_logger.candle(kline)
+        self.logger.candle(kline)
         self.klines.append(kline)
         await self._sync_current_trade_orders(kline)
 
         signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_trade=self.current_trade)
 
         if isinstance(signal, OpenTrade):
-            self.debug_logger.signal("OpenTrade")
+            self.logger.signal("OpenTrade")
             await self._open_trade(signal, kline)
             return False
 
         if isinstance(signal, CloseTrade):
-            self.debug_logger.signal("CloseTrade")
+            self.logger.signal("CloseTrade")
             await self._close_trade(signal, kline)
             return False
 
         if isinstance(signal, NoAction):
-            self.debug_logger.signal("NoAction")
+            self.logger.signal("NoAction")
             return False
 
-        self.debug_logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
+        self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
         return False
 
     async def _sync_current_trade_orders(self, kline: KlineEvent) -> None:
@@ -51,18 +51,18 @@ class TradingSession:
 
     async def _open_trade(self, signal: OpenTrade, kline: KlineEvent) -> None:
         if self.current_trade is not None:
-            self.debug_logger.trade("Open signal ignored: current trade already exists")
+            self.logger.trade("Open signal ignored: current trade already exists")
             return
 
         orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
         self.current_trade = Trade(orders=orders, is_open=True)
 
-        self.debug_logger.trade(f"Opened trade with {len(orders)} orders")
-        self.debug_logger.trade_orders(self.current_trade.orders)
+        self.logger.trade(f"Opened trade with {len(orders)} orders")
+        self.logger.trade_orders(self.current_trade.orders)
 
     async def _close_trade(self, signal: CloseTrade, kline: KlineEvent) -> None:
         if self.current_trade is None:
-            self.debug_logger.trade("Close signal ignored: no current trade")
+            self.logger.trade("Close signal ignored: no current trade")
             return
 
         self.current_trade.orders = await self.executor.cancel_orders(
@@ -75,10 +75,10 @@ class TradingSession:
         self.current_trade.orders.extend(close_orders)
         self.current_trade.is_open = False
 
-        self.debug_logger.trade("Closed trade")
-        self.debug_logger.trade(f"Close orders placed: {len(close_orders)}")
-        self.debug_logger.trade(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
-        self.debug_logger.trade_orders(self.current_trade.orders)
+        self.logger.trade("Closed trade")
+        self.logger.trade(f"Close orders placed: {len(close_orders)}")
+        self.logger.trade(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
+        self.logger.trade_orders(self.current_trade.orders)
 
         self.current_trade = None
 
@@ -87,7 +87,7 @@ class TradingSession:
 
         for order_request in order_requests:
             if order_request.quantity <= 0:
-                self.debug_logger.order(
+                self.logger.order(
                     f"Ignored order request: non-positive quantity ({order_request.quantity})"
                 )
                 continue

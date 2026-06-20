@@ -4,14 +4,14 @@ from trading_bot.trading.order import Order, OrderRequest
 
 
 class PaperExecutor:
-    def __init__(self, debug_logger: TradingDebugLogger) -> None:
+    def __init__(self, logger: TradingDebugLogger) -> None:
         self._next_order_id = 1
-        self.debug_logger = debug_logger
+        self.logger = logger
 
     async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
         order_id = str(self._next_order_id)
         self._next_order_id += 1
-        self.debug_logger.place_order(order_id, order_request)
+        self.logger.place_order(order_id, order_request)
 
         if order_request.order_type == "MARKET":
             order = Order(
@@ -21,7 +21,7 @@ class PaperExecutor:
                 filled_quantity=order_request.quantity,
                 average_fill_price=kline.close,
             )
-            self.debug_logger.fill_market_order(order, kline)
+            self.logger.fill_market_order(order, kline)
             return order
 
         return Order(
@@ -52,7 +52,7 @@ class PaperExecutor:
                 order.status = "FILLED"
                 order.filled_quantity = request.quantity
                 order.average_fill_price = request.price
-                self.debug_logger.fill_limit_order(order, kline)
+                self.logger.fill_limit_order(order, kline)
 
         return orders
 
@@ -63,6 +63,6 @@ class PaperExecutor:
 
             if order.status in {"NEW", "PARTIALLY_FILLED"}:
                 order.status = "CANCELED"
-                self.debug_logger.cancel_order(order)
+                self.logger.cancel_order(order)
 
         return orders

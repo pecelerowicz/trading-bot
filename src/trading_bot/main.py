@@ -14,14 +14,13 @@ async def main():
     app_config = load_app_config()
 
     strategy = ThreeGreenPyramidSellStrategy()
-    debug_logger = TradingDebugLogger()
-
-    executor = PaperExecutor(debug_logger=debug_logger)
+    logger = TradingDebugLogger()
+    executor = PaperExecutor(logger=logger)
 
     trading_session = TradingSession(
         strategy=strategy,
         executor=executor,
-        debug_logger=debug_logger,
+        logger=logger
     )
 
     if app_config.is_mock:
@@ -30,15 +29,15 @@ async def main():
             interval=app_config.interval,
             initial_date=app_config.mock_initial_date,
             final_date=app_config.mock_final_date,
-            delay_seconds=app_config.mock_delay_seconds,
+            delay_seconds=app_config.mock_delay_seconds
         )
     else:
         market_data_source = BinanceMarketDataSource(
             api_key=app_config.api_key,
             api_secret=app_config.api_secret,
-            testnet=not app_config.is_production,
+            testnet=app_config.is_testnet,
             symbol=app_config.symbol,
-            interval=app_config.interval,
+            interval=app_config.interval
         )
 
     app = TradingApp(
