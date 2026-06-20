@@ -44,10 +44,12 @@ class TradingSession:
         if self.current_trade is None:
             return
 
-        self.current_trade.orders = await self.executor.sync_order_statuses(
-            orders=self.current_trade.orders,
-            kline=kline,
-        )
+        updated_orders = []
+        for order in self.current_trade.orders:
+            updated = await self.executor.sync_order_status(order, kline)
+            updated_orders.append(updated)
+
+        self.current_trade.orders = updated_orders
 
     async def _open_trade(self, signal: OpenTrade, kline: KlineEvent) -> None:
         if self.current_trade is not None:

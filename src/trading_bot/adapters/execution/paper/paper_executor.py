@@ -32,29 +32,25 @@ class PaperExecutor:
             average_fill_price=None,
         )
 
-    async def sync_order_statuses(self, orders: list[Order], kline: KlineEvent) -> list[Order]:
-        for order in orders:
-            if order.status in {"FILLED", "CANCELED", "REJECTED"}:
-                continue
+    async def sync_order_status(self, order: Order, kline: KlineEvent) -> Order:
+        if order.status in {"FILLED", "CANCELED", "REJECTED"}:
+            return order
 
-            request = order.request
+        request = order.request
 
-            if request.order_type != "LIMIT":
-                continue
+        if request.order_type != "LIMIT" or request.price is None:
+            return order
 
-            if request.price is None:
-                continue
+        buy_filled = request.side == "BUY" and kline.low <= request.price
+        sell_filled = request.side == "SELL" and kline.high >= request.price
 
-            buy_limit_filled = request.side == "BUY" and kline.low <= request.price
-            sell_limit_filled = request.side == "SELL" and kline.high >= request.price
+        if buy_filled or sell_filled:
+            order.status = "FILLED"
+            order.filled_quantity = request.quantity
+            order.average_fill_price = request.price
+            self.logger.fill_limit_order(order, kline)
 
-            if buy_limit_filled or sell_limit_filled:
-                order.status = "FILLED"
-                order.filled_quantity = request.quantity
-                order.average_fill_price = request.price
-                self.logger.fill_limit_order(order, kline)
-
-        return orders
+        return order
 
     async def cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         for order in orders:
