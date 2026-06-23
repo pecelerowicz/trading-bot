@@ -1,5 +1,6 @@
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.trading.trade import Trade
 
 
 class TradingDebugLogger:
@@ -97,6 +98,47 @@ class TradingDebugLogger:
             f"high={kline.high:.4f} | "
             f"low={kline.low:.4f}"
         )
+
+    def trade_summary(self, trade: Trade) -> None:
+        filled = len([order for order in trade.orders if order.status == "FILLED"])
+        canceled = len([order for order in trade.orders if order.status == "CANCELED"])
+        rejected = len([order for order in trade.orders if order.status == "REJECTED"])
+        active = len([
+            order
+            for order in trade.orders
+            if order.status not in {"FILLED", "CANCELED", "REJECTED"}
+        ])
+
+        status = "OPEN" if trade.is_open else "CLOSED"
+
+        self.trade(
+            f"{status} | "
+            f"orders={len(trade.orders)} | "
+            f"filled={filled} | "
+            f"active={active} | "
+            f"canceled={canceled} | "
+            f"rejected={rejected}"
+        )
+
+    def trade_history(self, trades: list[Trade]) -> None:
+        open_count = len([trade for trade in trades if trade.is_open])
+        closed_count = len(trades) - open_count
+
+        self.trade(
+            f"History | total={len(trades)} | "
+            f"open={open_count} | closed={closed_count}"
+        )
+
+        for index, trade in enumerate(trades[-5:], start=max(1, len(trades) - 4)):
+            status = "OPEN" if trade.is_open else "CLOSED"
+            filled = len([order for order in trade.orders if order.status == "FILLED"])
+
+            self.trade(
+                f"#{index} | "
+                f"{status} | "
+                f"orders={len(trade.orders)} | "
+                f"filled={filled}"
+            )
 
     def trade_orders(self, orders: list[Order]) -> None:
         self.trade("Orders:")

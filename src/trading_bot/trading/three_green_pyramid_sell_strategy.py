@@ -66,7 +66,7 @@ class ThreeGreenPyramidSellStrategy:
         order_requests: list[OrderRequest] = []
 
         for i in range(10):
-            price = current_close * (1 + i * 0.002)
+            price = current_close * (1 + i * 0.0002)
             order_requests.append(
                 OrderRequest(
                     side="SELL",
