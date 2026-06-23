@@ -1,18 +1,8 @@
 from dataclasses import dataclass
 from typing import Literal
 
-
 OrderSide = Literal["BUY", "SELL"]
 OrderType = Literal["MARKET", "LIMIT"]
-
-OrderStatus = Literal[
-    "NEW",
-    "PARTIALLY_FILLED",
-    "FILLED",
-    "CANCELED",
-    "REJECTED",
-]
-
 
 @dataclass(frozen=True)
 class OrderRequest:
@@ -21,6 +11,8 @@ class OrderRequest:
     quantity: float
     price: float | None = None
 
+
+OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED"]
 
 @dataclass
 class Order:
