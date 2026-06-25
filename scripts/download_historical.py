@@ -14,7 +14,7 @@ def main():
     api_secret = os.getenv("BINANCE_API_SECRET")
     client = Client(api_key=api_key, api_secret=api_secret)
 
-    symbol = "SOLUSDT"
+    symbol = "BTCUSDT"
     interval = "1h"
     initial_date = "2026-01-01"
     final_date = "2027-01-01"

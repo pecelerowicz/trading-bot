@@ -11,6 +11,7 @@ class TradingSession:
         self.executor = executor
         self.logger = logger
         self.klines: list[KlineEvent] = []
+        self.trades: list[Trade] = []
         self.current_trade: Trade | None = None
 
     async def handle_kline(self, kline: KlineEvent) -> bool:
@@ -45,6 +46,7 @@ class TradingSession:
             return
 
         updated_orders = []
+
         for order in self.current_trade.orders:
             updated = await self.executor.sync_order_status(order, kline)
             updated_orders.append(updated)
@@ -57,10 +59,15 @@ class TradingSession:
             return
 
         orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-        self.current_trade = Trade(orders=orders, is_open=True)
 
-        self.logger.trade(f"Opened trade with {len(orders)} orders")
-        self.logger.trade_orders(self.current_trade.orders)
+        trade = Trade(orders=orders, is_open=True)
+
+        self.current_trade = trade
+        self.trades.append(trade)
+
+        self.logger.trade("Opened trade")
+        self.logger.trade_summary(trade)
+        self.logger.trade_history(self.trades)
 
     async def _close_trade(self, signal: CloseTrade, kline: KlineEvent) -> None:
         if self.current_trade is None:
@@ -80,11 +87,12 @@ class TradingSession:
         self.logger.trade("Closed trade")
         self.logger.trade(f"Close orders placed: {len(close_orders)}")
         self.logger.trade(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
-        self.logger.trade_orders(self.current_trade.orders)
+        self.logger.trade_summary(self.current_trade)
+        self.logger.trade_history(self.trades)
 
         self.current_trade = None
 
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
+    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent, ) -> list[Order]:
         orders: list[Order] = []
 
         for order_request in order_requests:
