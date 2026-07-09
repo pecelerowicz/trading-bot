@@ -1,6 +1,6 @@
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import Order, OrderRequest
-from trading_bot.trading.trade import Trade
+from trading_bot.trading.campaign import Campaign
 
 
 class TradingDebugLogger:
@@ -40,8 +40,8 @@ class TradingDebugLogger:
     def signal(self, signal_name: str) -> None:
         self.print("SIGNAL", signal_name, indent=1)
 
-    def trade(self, message: str) -> None:
-        self.print("TRADE", message, indent=1)
+    def campaign(self, message: str) -> None:
+        self.print("CAMPAIGN", message, indent=1)
 
     def order(self, message: str) -> None:
         self.print("ORDER", message, indent=2)
@@ -99,49 +99,49 @@ class TradingDebugLogger:
             f"low={kline.low:.4f}"
         )
 
-    def trade_summary(self, trade: Trade) -> None:
-        filled = len([order for order in trade.orders if order.status == "FILLED"])
-        canceled = len([order for order in trade.orders if order.status == "CANCELED"])
-        rejected = len([order for order in trade.orders if order.status == "REJECTED"])
+    def campaign_summary(self, campaign: Campaign) -> None:
+        filled = len([order for order in campaign.orders if order.status == "FILLED"])
+        canceled = len([order for order in campaign.orders if order.status == "CANCELED"])
+        rejected = len([order for order in campaign.orders if order.status == "REJECTED"])
         active = len([
             order
-            for order in trade.orders
+            for order in campaign.orders
             if order.status not in {"FILLED", "CANCELED", "REJECTED"}
         ])
 
-        status = "OPEN" if trade.is_open else "CLOSED"
+        status = "OPEN" if campaign.is_active else "CLOSED"
 
-        self.trade(
+        self.campaign(
             f"{status} | "
-            f"orders={len(trade.orders)} | "
+            f"orders={len(campaign.orders)} | "
             f"filled={filled} | "
             f"active={active} | "
             f"canceled={canceled} | "
             f"rejected={rejected}"
         )
 
-    def trade_history(self, trades: list[Trade]) -> None:
-        open_count = len([trade for trade in trades if trade.is_open])
-        closed_count = len(trades) - open_count
+    def campaign_history(self, campaigns: list[Campaign]) -> None:
+        open_count = len([campaign for campaign in campaigns if campaign.is_active])
+        closed_count = len(campaigns) - open_count
 
-        self.trade(
-            f"History | total={len(trades)} | "
+        self.campaign(
+            f"History | total={len(campaigns)} | "
             f"open={open_count} | closed={closed_count}"
         )
 
-        for index, trade in enumerate(trades[-5:], start=max(1, len(trades) - 4)):
-            status = "OPEN" if trade.is_open else "CLOSED"
-            filled = len([order for order in trade.orders if order.status == "FILLED"])
+        for index, campaign in enumerate(campaigns[-5:], start=max(1, len(campaigns) - 4)):
+            status = "OPEN" if campaign.is_active else "CLOSED"
+            filled = len([order for order in campaign.orders if order.status == "FILLED"])
 
-            self.trade(
+            self.campaign(
                 f"#{index} | "
                 f"{status} | "
-                f"orders={len(trade.orders)} | "
+                f"orders={len(campaign.orders)} | "
                 f"filled={filled}"
             )
 
-    def trade_orders(self, orders: list[Order]) -> None:
-        self.trade("Orders:")
+    def campaign_orders(self, orders: list[Order]) -> None:
+        self.campaign("Orders:")
 
         for order in orders:
             price = (

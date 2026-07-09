@@ -5,12 +5,12 @@ from trading_bot.trading.order import OrderRequest
 
 
 @dataclass(frozen=True)
-class OpenTrade:
+class OpenCampaign:
     order_requests: list[OrderRequest]
 
 
 @dataclass(frozen=True)
-class CloseTrade:
+class CloseCampaign:
     order_requests: list[OrderRequest]
     order_ids_to_cancel: list[str] = field(default_factory=list)
 
@@ -20,4 +20,4 @@ class NoAction:
     pass
 
 
-StrategySignal: TypeAlias = OpenTrade | CloseTrade | NoAction
+StrategySignal: TypeAlias = OpenCampaign | CloseCampaign | NoAction

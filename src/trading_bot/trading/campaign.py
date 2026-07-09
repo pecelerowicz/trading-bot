@@ -4,6 +4,6 @@ from trading_bot.trading.order import Order
 
 
 @dataclass
-class Trade:
+class Campaign:
     orders: list[Order]
-    is_open: bool = True
+    is_active: bool = True
