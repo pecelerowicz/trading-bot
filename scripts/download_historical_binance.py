@@ -14,10 +14,10 @@ def main():
     api_secret = os.getenv("BINANCE_API_SECRET")
     client = Client(api_key=api_key, api_secret=api_secret)
 
-    symbol = "BTCUSDT"
+    symbol = "SOLUSDT"
     interval = "1h"
-    initial_date = "2026-01-01"
-    final_date = "2027-01-01"
+    initial_date = "2010-01-01"
+    final_date = "2030-01-01"
 
     retriever = BinanceMarketDataApi(client=client)
 
