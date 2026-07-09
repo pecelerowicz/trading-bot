@@ -1,7 +1,7 @@
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import OrderRequest
-from trading_bot.trading.signal import OpenTrade, CloseTrade, NoAction, StrategySignal
-from trading_bot.trading.trade import Trade
+from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
+from trading_bot.trading.campaign import Campaign
 
 
 class ThreeGreenPyramidSellStrategy:
@@ -19,11 +19,11 @@ class ThreeGreenPyramidSellStrategy:
             self,
             kline: KlineEvent,
             klines: list[KlineEvent],
-            current_trade: Trade | None,
+            current_campaign: Campaign | None,
     ) -> StrategySignal:
 
         # === CLOSING LOGIC ===
-        if current_trade is not None:
+        if current_campaign is not None:
             if len(klines) >= 2:
                 last_two = klines[-2:]
                 is_two_consecutive_red = all(
@@ -31,7 +31,7 @@ class ThreeGreenPyramidSellStrategy:
                 )
 
                 if is_two_consecutive_red:
-                    return CloseTrade(
+                    return CloseCampaign(
                         order_requests=[
                             OrderRequest(
                                 side="BUY",  # BUY to close short
@@ -41,7 +41,7 @@ class ThreeGreenPyramidSellStrategy:
                         ],
                         order_ids_to_cancel=[
                             order.order_id
-                            for order in current_trade.orders
+                            for order in current_campaign.orders
                             if order.status in {"NEW", "PARTIALLY_FILLED"}
                         ]
                     )
@@ -76,4 +76,4 @@ class ThreeGreenPyramidSellStrategy:
                 )
             )
 
-        return OpenTrade(order_requests=order_requests)
+        return OpenCampaign(order_requests=order_requests)
