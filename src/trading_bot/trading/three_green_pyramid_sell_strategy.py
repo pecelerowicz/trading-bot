@@ -5,21 +5,12 @@ from trading_bot.trading.campaign import Campaign
 
 
 class ThreeGreenPyramidSellStrategy:
-    """
-    Short strategy with the following rules:
-
-    Entry:  Open short position after 3 consecutive green candles
-            → Places 4 limit sell orders in a pyramid (+0%, +1%, +2%, +3%)
-
-    Exit:   Close position after 2 consecutive red candles
-            → Market buy to close + cancel remaining limit orders
-    """
 
     def on_kline(
-            self,
-            kline: KlineEvent,
-            klines: list[KlineEvent],
-            current_campaign: Campaign | None,
+        self,
+        kline: KlineEvent,
+        klines: list[KlineEvent],
+        current_campaign: Campaign | None,
     ) -> StrategySignal:
 
         # === CLOSING LOGIC ===
@@ -31,19 +22,32 @@ class ThreeGreenPyramidSellStrategy:
                 )
 
                 if is_two_consecutive_red:
-                    return CloseCampaign(
-                        order_requests=[
+                    summary = current_campaign.execution_summary()
+
+                    quantity_to_buy_back = summary.sold_base - summary.bought_base
+                    quantity_to_buy_back = max(quantity_to_buy_back, 0.0)
+
+                    order_requests: list[OrderRequest] = []
+
+                    if quantity_to_buy_back > 0:
+                        order_requests.append(
                             OrderRequest(
-                                side="BUY",  # BUY to close short
+                                side="BUY",
                                 order_type="MARKET",
-                                quantity=1.0,
+                                quantity=quantity_to_buy_back,
                             )
-                        ],
+                        )
+
+                    return CloseCampaign(
+                        order_requests=order_requests,
                         order_ids_to_cancel=[
-                            order.order_id
-                            for order in current_campaign.orders
-                            if order.status in {"NEW", "PARTIALLY_FILLED"}
-                        ]
+                            order_id
+                            for order_id in current_campaign.order_ids
+                            if (
+                                order := current_campaign.get_order(order_id)
+                            ) is not None
+                            and order.status in {"NEW", "PARTIALLY_FILLED"}
+                        ],
                     )
 
             return NoAction()
@@ -52,7 +56,6 @@ class ThreeGreenPyramidSellStrategy:
         if len(klines) < 3:
             return NoAction()
 
-        # Check last 3 candles
         last_three = klines[-3:]
         is_three_consecutive_green = all(
             candle.close > candle.open for candle in last_three
@@ -61,7 +64,6 @@ class ThreeGreenPyramidSellStrategy:
         if not is_three_consecutive_green:
             return NoAction()
 
-        # Build pyramid sell orders
         current_close = kline.close
         order_requests: list[OrderRequest] = []
 

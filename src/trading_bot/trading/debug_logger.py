@@ -109,7 +109,20 @@ class TradingDebugLogger:
             if order.status not in {"FILLED", "CANCELED", "REJECTED"}
         ])
 
-        status = "OPEN" if campaign.is_active else "CLOSED"
+        status = "ACTIVE" if campaign.is_active else "INACTIVE"
+        summary = campaign.execution_summary()
+
+        average_buy_price = (
+            f"{summary.average_buy_price:.4f}"
+            if summary.average_buy_price is not None
+            else "-"
+        )
+
+        average_sell_price = (
+            f"{summary.average_sell_price:.4f}"
+            if summary.average_sell_price is not None
+            else "-"
+        )
 
         self.campaign(
             f"{status} | "
@@ -118,6 +131,20 @@ class TradingDebugLogger:
             f"active={active} | "
             f"canceled={canceled} | "
             f"rejected={rejected}"
+        )
+
+        self.campaign(
+            f"Execution | "
+            f"base_delta={summary.net_base_delta:+.8f} | "
+            f"quote_delta={summary.net_quote_delta:+.2f} | "
+            f"bought={summary.bought_base:.8f} | "
+            f"sold={summary.sold_base:.8f}"
+        )
+
+        self.campaign(
+            f"Average prices | "
+            f"buy={average_buy_price} | "
+            f"sell={average_sell_price}"
         )
 
     def campaign_history(self, campaigns: list[Campaign]) -> None:
