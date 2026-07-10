@@ -63,6 +63,45 @@ class TradingDebugLogger:
             f"price={price}"
         )
 
+    def placed_orders(self, orders: list[Order]) -> None:
+        if not orders:
+            return
+
+        compact_orders = [
+            self._compact_order(order)
+            for order in orders
+        ]
+
+        self.order(
+            f"Placed {len(orders)} order(s): "
+            + " || ".join(compact_orders)
+        )
+
+    def _compact_order(self, order: Order) -> str:
+        order_type = (
+            "MKT"
+            if order.request.order_type == "MARKET"
+            else "LMT"
+        )
+
+        price = (
+            f"{order.request.price:.4f}"
+            if order.request.price is not None
+            else (
+                f"{order.average_fill_price:.4f}"
+                if order.average_fill_price is not None
+                else "MKT"
+            )
+        )
+
+        return (
+            f"#{order.order_id} "
+            f"{order.request.side} {order_type} "
+            f"q={order.request.quantity} "
+            f"p={price} "
+            f"[{order.status}]"
+        )
+
     def cancel_order(self, order: Order) -> None:
         self.order(
             f"Canceled order #{order.order_id}: "
@@ -148,16 +187,16 @@ class TradingDebugLogger:
         )
 
     def campaign_history(self, campaigns: list[Campaign]) -> None:
-        open_count = len([campaign for campaign in campaigns if campaign.is_active])
-        closed_count = len(campaigns) - open_count
+        active_count = len([campaign for campaign in campaigns if campaign.is_active])
+        inactive_count = len(campaigns) - active_count
 
         self.campaign(
             f"History | total={len(campaigns)} | "
-            f"open={open_count} | closed={closed_count}"
+            f"active={active_count} | inactive={inactive_count}"
         )
 
         for index, campaign in enumerate(campaigns[-5:], start=max(1, len(campaigns) - 4)):
-            status = "OPEN" if campaign.is_active else "CLOSED"
+            status = "ACTIVE" if campaign.is_active else "INACTIVE"
             filled = len([order for order in campaign.orders if order.status == "FILLED"])
 
             self.campaign(

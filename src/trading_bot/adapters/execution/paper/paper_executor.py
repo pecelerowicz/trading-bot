@@ -9,13 +9,10 @@ class PaperExecutor:
         self.logger = logger
 
     async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
+        order_id = str(self._next_order_id)
+        self._next_order_id += 1
+
         if order_request.quantity <= 0:
-            self.logger.order(
-                f"Rejected invalid order: quantity={order_request.quantity} <= 0"
-            )
-            # Zwracamy order ze statusem REJECTED
-            order_id = str(self._next_order_id)
-            self._next_order_id += 1
             return Order(
                 order_id=order_id,
                 request=order_request,
@@ -24,20 +21,14 @@ class PaperExecutor:
                 average_fill_price=None,
             )
 
-        order_id = str(self._next_order_id)
-        self._next_order_id += 1
-        self.logger.place_order(order_id, order_request)
-
         if order_request.order_type == "MARKET":
-            order = Order(
+            return Order(
                 order_id=order_id,
                 request=order_request,
                 status="FILLED",
                 filled_quantity=order_request.quantity,
                 average_fill_price=kline.close,
             )
-            self.logger.fill_market_order(order, kline)
-            return order
 
         return Order(
             order_id=order_id,

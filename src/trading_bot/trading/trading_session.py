@@ -20,9 +20,14 @@ class TradingSession:
 
         self.logger.candle(kline)
         self.klines.append(kline)
+
         await self._sync_current_campaign_orders(kline)
 
-        signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
+        signal = self.strategy.on_kline(
+            kline=kline,
+            klines=self.klines,
+            current_campaign=self.current_campaign,
+        )
 
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
@@ -58,7 +63,10 @@ class TradingSession:
             self.logger.campaign("Open signal ignored: current campaign already exists")
             return
 
-        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
+        orders = await self._place_orders(
+            order_requests=signal.order_requests,
+            kline=kline,
+        )
 
         campaign = Campaign(orders=orders, is_active=True)
 
@@ -92,11 +100,17 @@ class TradingSession:
 
         self.current_campaign = None
 
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent, ) -> list[Order]:
+    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent,) -> list[Order]:
         orders: list[Order] = []
 
         for order_request in order_requests:
             order = await self.executor.place_order(order_request=order_request, kline=kline)
             orders.append(order)
+
+        self.logger.placed_orders(orders)
+
+        for order in orders:
+            if order.status == "FILLED" and order.request.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
 
         return orders
