@@ -58,13 +58,9 @@ class PaperExecutor:
 
         return order
 
-    async def cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
-        for order in orders:
-            if order.order_id not in order_ids_to_cancel:
-                continue
+    async def cancel_order(self, order: Order) -> Order:
+        if order.status in {"NEW", "PARTIALLY_FILLED"}:
+            order.status = "CANCELED"
+            self.logger.cancel_order(order)
 
-            if order.status in {"NEW", "PARTIALLY_FILLED"}:
-                order.status = "CANCELED"
-                self.logger.cancel_order(order)
-
-        return orders
+        return order

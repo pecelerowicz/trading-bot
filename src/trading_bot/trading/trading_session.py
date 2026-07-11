@@ -82,7 +82,7 @@ class TradingSession:
 
         self.logger.campaign("Closing campaign")
 
-        self.current_campaign.orders = await self.executor.cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
+        self.current_campaign.orders = await self._cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
         self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
 
         close_orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
@@ -96,6 +96,19 @@ class TradingSession:
         self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
+
+    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
+        updated_orders: list[Order] = []
+
+        for order in orders:
+            if order.order_id not in order_ids_to_cancel:
+                updated_orders.append(order)
+                continue
+
+            canceled_order = await self.executor.cancel_order(order)
+            updated_orders.append(canceled_order)
+
+        return updated_orders
 
     async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent,) -> list[Order]:
         orders: list[Order] = []
