@@ -6,12 +6,6 @@ from trading_bot.trading.campaign import Campaign
 class TradingDebugLogger:
     INDENT = "    "
 
-    def print(self, tag: str, message: str, indent: int = 0) -> None:
-        print(f"{self.INDENT * indent}[{tag:<6}] {message}")
-
-    def blank_line(self) -> None:
-        print()
-
     def candle(self, kline: KlineEvent) -> None:
         if abs(kline.close - kline.open) < 0.0001:
             color = "⚪ DOJI"
@@ -26,8 +20,8 @@ class TradingDebugLogger:
             else 0
         )
 
-        self.blank_line()
-        self.print(
+        self._blank_line()
+        self._print(
             "CANDLE",
             f"{kline.open_time.strftime('%Y-%m-%d %H:%M')} | "
             f"{color} | "
@@ -38,16 +32,16 @@ class TradingDebugLogger:
         )
 
     def signal(self, signal_name: str) -> None:
-        self.print("SIGNAL", signal_name, indent=1)
+        self._print("SIGNAL", signal_name, indent=1)
 
     def campaign(self, message: str) -> None:
-        self.print("CAMPAIGN", message, indent=1)
+        self._print("CAMPAIGN", message, indent=1)
 
     def order(self, message: str) -> None:
-        self.print("ORDER", message, indent=2)
+        self._print("ORDER", message, indent=2)
 
     def fill(self, message: str) -> None:
-        self.print("FILL", message, indent=3)
+        self._print("FILL", message, indent=3)
 
     def place_order(self, order_id: str, order_request: OrderRequest) -> None:
         price = (
@@ -142,96 +136,85 @@ class TradingDebugLogger:
         filled = len([order for order in campaign.orders if order.status == "FILLED"])
         canceled = len([order for order in campaign.orders if order.status == "CANCELED"])
         rejected = len([order for order in campaign.orders if order.status == "REJECTED"])
-        active = len([
-            order
-            for order in campaign.orders
-            if order.status not in {"FILLED", "CANCELED", "REJECTED"}
-        ])
+        active = len([order for order in campaign.orders if order.status not in {"FILLED", "CANCELED", "REJECTED"}])
 
         status = "ACTIVE" if campaign.is_active else "INACTIVE"
         summary = campaign.execution_summary()
 
-        average_buy_price = (
-            f"{summary.average_buy_price:.4f}"
-            if summary.average_buy_price is not None
-            else "-"
-        )
+        average_buy_price = (f"{summary.average_buy_price:.4f}" if summary.average_buy_price is not None else "-")
+        average_sell_price = (f"{summary.average_sell_price:.4f}" if summary.average_sell_price is not None else "-")
 
-        average_sell_price = (
-            f"{summary.average_sell_price:.4f}"
-            if summary.average_sell_price is not None
-            else "-"
-        )
+        self._print("CAMPAIGN SUMMARY", "", indent=1)
 
-        self.campaign(
-            f"{status} | "
+        self._detail(
+            f"status={status} | "
             f"orders={len(campaign.orders)} | "
             f"filled={filled} | "
             f"active={active} | "
             f"canceled={canceled} | "
-            f"rejected={rejected}"
+            f"rejected={rejected}",
+            indent=2,
         )
 
-        self.campaign(
-            f"Execution | "
+        self._detail(
             f"base_delta={summary.net_base_delta:+.8f} | "
             f"quote_delta={summary.net_quote_delta:+.2f} | "
             f"bought={summary.bought_base:.8f} | "
-            f"sold={summary.sold_base:.8f}"
+            f"sold={summary.sold_base:.8f} | "
+            f"avg_buy={average_buy_price} | "
+            f"avg_sell={average_sell_price}",
+            indent=2,
         )
 
-        self.campaign(
-            f"Average prices | "
-            f"buy={average_buy_price} | "
-            f"sell={average_sell_price}"
-        )
+    def campaigns_history(self, campaigns: list[Campaign]) -> None:
+        active_count = len([
+            campaign
+            for campaign in campaigns
+            if campaign.is_active
+        ])
 
-    def campaign_history(self, campaigns: list[Campaign]) -> None:
-        active_count = len([campaign for campaign in campaigns if campaign.is_active])
         inactive_count = len(campaigns) - active_count
 
-        self.campaign(
-            f"History | total={len(campaigns)} | "
-            f"active={active_count} | inactive={inactive_count}"
+        self._print("CAMPAIGNS HISTORY", "", indent=1)
+
+        self._detail(
+            f"total={len(campaigns)} | "
+            f"active={active_count} | "
+            f"inactive={inactive_count}",
+            indent=2,
         )
 
-        for index, campaign in enumerate(campaigns[-5:], start=max(1, len(campaigns) - 4)):
-            status = "ACTIVE" if campaign.is_active else "INACTIVE"
-            filled = len([order for order in campaign.orders if order.status == "FILLED"])
+        recent_campaigns = []
 
-            self.campaign(
-                f"#{index} | "
-                f"{status} | "
-                f"orders={len(campaign.orders)} | "
+        for index, campaign in enumerate(
+                campaigns[-5:],
+                start=max(1, len(campaigns) - 4),
+        ):
+            status = "ACTIVE" if campaign.is_active else "INACTIVE"
+
+            filled = len([
+                order
+                for order in campaign.orders
+                if order.status == "FILLED"
+            ])
+
+            recent_campaigns.append(
+                f"#{index} {status} "
+                f"orders={len(campaign.orders)} "
                 f"filled={filled}"
             )
 
-    def campaign_orders(self, orders: list[Order]) -> None:
-        self.campaign("Orders:")
-
-        for order in orders:
-            price = (
-                f"{order.request.price:.4f}"
-                if order.request.price is not None
-                else (
-                    f"{order.average_fill_price:.4f}"
-                    if order.average_fill_price is not None
-                    else "-"
+        if recent_campaigns:
+            self._detail(
+                "recent: " + " || ".join(recent_campaigns),
+                indent=2,
                 )
-            )
 
-            average_fill_price = (
-                f"{order.average_fill_price:.4f}"
-                if order.average_fill_price is not None
-                else "-"
-            )
+    def _print(self, tag: str, message: str, indent: int = 0) -> None:
+        print(f"{self.INDENT * indent}[{tag:<6}] {message}")
 
-            self.order(
-                f"#{order.order_id} | "
-                f"{order.request.side} {order.request.order_type} | "
-                f"qty={order.request.quantity} | "
-                f"price={price} | "
-                f"status={order.status} | "
-                f"filled={order.filled_quantity} | "
-                f"avg_fill={average_fill_price}"
-            )
+    def _detail(self, message: str, indent: int = 2) -> None:
+        print(f"{self.INDENT * indent}{message}")
+
+    def _blank_line(self) -> None:
+        print()

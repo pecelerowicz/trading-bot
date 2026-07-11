@@ -63,11 +63,9 @@ class TradingSession:
             self.logger.campaign("Open signal ignored: current campaign already exists")
             return
 
-        orders = await self._place_orders(
-            order_requests=signal.order_requests,
-            kline=kline,
-        )
+        self.logger.campaign("Opening campaign")
 
+        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
         campaign = Campaign(orders=orders, is_active=True)
 
         self.current_campaign = campaign
@@ -75,28 +73,27 @@ class TradingSession:
 
         self.logger.campaign("Opened campaign")
         self.logger.campaign_summary(campaign)
-        self.logger.campaign_history(self.campaigns)
+        self.logger.campaigns_history(self.campaigns)
 
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is None:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
-        self.current_campaign.orders = await self.executor.cancel_orders(
-            orders=self.current_campaign.orders,
-            order_ids_to_cancel=signal.order_ids_to_cancel,
-        )
+        self.logger.campaign("Closing campaign")
+
+        self.current_campaign.orders = await self.executor.cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
+        self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
 
         close_orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-
         self.current_campaign.orders.extend(close_orders)
+        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
+
         self.current_campaign.is_active = False
 
         self.logger.campaign("Closed campaign")
-        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
-        self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
         self.logger.campaign_summary(self.current_campaign)
-        self.logger.campaign_history(self.campaigns)
+        self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
 
