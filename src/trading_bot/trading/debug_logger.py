@@ -71,6 +71,20 @@ class TradingDebugLogger:
             + " || ".join(compact_orders)
         )
 
+    def canceled_orders(self, orders: list[Order]) -> None:
+        if not orders:
+            return
+
+        compact_orders = [
+            self._compact_order(order)
+            for order in orders
+        ]
+
+        self.order(
+            f"Canceled {len(orders)} order(s): "
+            + " || ".join(compact_orders)
+        )
+
     def _compact_order(self, order: Order) -> str:
         order_type = (
             "MKT"

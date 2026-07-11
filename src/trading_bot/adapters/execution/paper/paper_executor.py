@@ -38,6 +38,12 @@ class PaperExecutor:
             average_fill_price=None,
         )
 
+    async def cancel_order(self, order: Order) -> Order:
+        if order.status in {"NEW", "PARTIALLY_FILLED"}:
+            order.status = "CANCELED"
+
+        return order
+
     async def sync_order_status(self, order: Order, kline: KlineEvent) -> Order:
         if order.status in {"FILLED", "CANCELED", "REJECTED"}:
             return order
@@ -55,12 +61,5 @@ class PaperExecutor:
             order.filled_quantity = request.quantity
             order.average_fill_price = request.price
             self.logger.fill_limit_order(order, kline)
-
-        return order
-
-    async def cancel_order(self, order: Order) -> Order:
-        if order.status in {"NEW", "PARTIALLY_FILLED"}:
-            order.status = "CANCELED"
-            self.logger.cancel_order(order)
 
         return order

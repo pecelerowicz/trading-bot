@@ -23,11 +23,7 @@ class TradingSession:
 
         await self._sync_current_campaign_orders(kline)
 
-        signal = self.strategy.on_kline(
-            kline=kline,
-            klines=self.klines,
-            current_campaign=self.current_campaign,
-        )
+        signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
 
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
@@ -72,8 +68,6 @@ class TradingSession:
         self.campaigns.append(campaign)
 
         self.logger.campaign("Opened campaign")
-        self.logger.campaign_summary(campaign)
-        self.logger.campaigns_history(self.campaigns)
 
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is None:
@@ -99,14 +93,21 @@ class TradingSession:
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         updated_orders: list[Order] = []
+        canceled_orders: list[Order] = []
 
         for order in orders:
             if order.order_id not in order_ids_to_cancel:
                 updated_orders.append(order)
                 continue
 
+            previous_status = order.status
             canceled_order = await self.executor.cancel_order(order)
             updated_orders.append(canceled_order)
+
+            if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
+                canceled_orders.append(canceled_order)
+
+        self.logger.canceled_orders(canceled_orders)
 
         return updated_orders
 
