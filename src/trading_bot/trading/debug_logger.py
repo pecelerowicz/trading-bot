@@ -6,12 +6,6 @@ from trading_bot.trading.campaign import Campaign
 class TradingDebugLogger:
     INDENT = "    "
 
-    def print(self, tag: str, message: str, indent: int = 0) -> None:
-        print(f"{self.INDENT * indent}[{tag:<6}] {message}")
-
-    def blank_line(self) -> None:
-        print()
-
     def candle(self, kline: KlineEvent) -> None:
         if abs(kline.close - kline.open) < 0.0001:
             color = "⚪ DOJI"
@@ -26,8 +20,8 @@ class TradingDebugLogger:
             else 0
         )
 
-        self.blank_line()
-        self.print(
+        self._blank_line()
+        self._print(
             "CANDLE",
             f"{kline.open_time.strftime('%Y-%m-%d %H:%M')} | "
             f"{color} | "
@@ -38,16 +32,16 @@ class TradingDebugLogger:
         )
 
     def signal(self, signal_name: str) -> None:
-        self.print("SIGNAL", signal_name, indent=1)
+        self._print("SIGNAL", signal_name, indent=1)
 
     def campaign(self, message: str) -> None:
-        self.print("CAMPAIGN", message, indent=1)
+        self._print("CAMPAIGN", message, indent=1)
 
     def order(self, message: str) -> None:
-        self.print("ORDER", message, indent=2)
+        self._print("ORDER", message, indent=2)
 
     def fill(self, message: str) -> None:
-        self.print("FILL", message, indent=3)
+        self._print("FILL", message, indent=3)
 
     def place_order(self, order_id: str, order_request: OrderRequest) -> None:
         price = (
@@ -61,6 +55,59 @@ class TradingDebugLogger:
             f"{order_request.side} {order_request.order_type} | "
             f"qty={order_request.quantity} | "
             f"price={price}"
+        )
+
+    def placed_orders(self, orders: list[Order]) -> None:
+        if not orders:
+            return
+
+        compact_orders = [
+            self._compact_order(order)
+            for order in orders
+        ]
+
+        self.order(
+            f"Placed {len(orders)} order(s): "
+            + " || ".join(compact_orders)
+        )
+
+    def canceled_orders(self, orders: list[Order]) -> None:
+        if not orders:
+            return
+
+        compact_orders = [
+            self._compact_order(order)
+            for order in orders
+        ]
+
+        self.order(
+            f"Canceled {len(orders)} order(s): "
+            + " || ".join(compact_orders)
+        )
+
+    def _compact_order(self, order: Order) -> str:
+        order_type = (
+            "MKT"
+            if order.request.order_type == "MARKET"
+            else "LMT"
+        )
+
+        price = (
+            f"{order.request.price:.4f}"
+            if order.request.price is not None
+            else (
+                f"{order.average_fill_price:.4f}"
+                if order.average_fill_price is not None
+                else "MKT"
+            )
+        )
+
+        return (
+            f"#{order.order_id} "
+            f"{order.request.side} {order_type} "
+            f"q={order.request.quantity} "
+            f"p={price} "
+            f"[{order.status}]"
         )
 
     def cancel_order(self, order: Order) -> None:
@@ -103,69 +150,85 @@ class TradingDebugLogger:
         filled = len([order for order in campaign.orders if order.status == "FILLED"])
         canceled = len([order for order in campaign.orders if order.status == "CANCELED"])
         rejected = len([order for order in campaign.orders if order.status == "REJECTED"])
-        active = len([
-            order
-            for order in campaign.orders
-            if order.status not in {"FILLED", "CANCELED", "REJECTED"}
-        ])
+        active = len([order for order in campaign.orders if order.status not in {"FILLED", "CANCELED", "REJECTED"}])
 
-        status = "OPEN" if campaign.is_active else "CLOSED"
+        status = "ACTIVE" if campaign.is_active else "INACTIVE"
+        summary = campaign.execution_summary()
 
-        self.campaign(
-            f"{status} | "
+        average_buy_price = (f"{summary.average_buy_price:.4f}" if summary.average_buy_price is not None else "-")
+        average_sell_price = (f"{summary.average_sell_price:.4f}" if summary.average_sell_price is not None else "-")
+
+        self._print("CAMPAIGN SUMMARY", "", indent=1)
+
+        self._detail(
+            f"status={status} | "
             f"orders={len(campaign.orders)} | "
             f"filled={filled} | "
             f"active={active} | "
             f"canceled={canceled} | "
-            f"rejected={rejected}"
+            f"rejected={rejected}",
+            indent=2,
         )
 
-    def campaign_history(self, campaigns: list[Campaign]) -> None:
-        open_count = len([campaign for campaign in campaigns if campaign.is_active])
-        closed_count = len(campaigns) - open_count
-
-        self.campaign(
-            f"History | total={len(campaigns)} | "
-            f"open={open_count} | closed={closed_count}"
+        self._detail(
+            f"base_delta={summary.net_base_delta:+.8f} | "
+            f"quote_delta={summary.net_quote_delta:+.2f} | "
+            f"bought={summary.bought_base:.8f} | "
+            f"sold={summary.sold_base:.8f} | "
+            f"avg_buy={average_buy_price} | "
+            f"avg_sell={average_sell_price}",
+            indent=2,
         )
 
-        for index, campaign in enumerate(campaigns[-5:], start=max(1, len(campaigns) - 4)):
-            status = "OPEN" if campaign.is_active else "CLOSED"
-            filled = len([order for order in campaign.orders if order.status == "FILLED"])
+    def campaigns_history(self, campaigns: list[Campaign]) -> None:
+        active_count = len([
+            campaign
+            for campaign in campaigns
+            if campaign.is_active
+        ])
 
-            self.campaign(
-                f"#{index} | "
-                f"{status} | "
-                f"orders={len(campaign.orders)} | "
+        inactive_count = len(campaigns) - active_count
+
+        self._print("CAMPAIGNS HISTORY", "", indent=1)
+
+        self._detail(
+            f"total={len(campaigns)} | "
+            f"active={active_count} | "
+            f"inactive={inactive_count}",
+            indent=2,
+        )
+
+        recent_campaigns = []
+
+        for index, campaign in enumerate(
+                campaigns[-5:],
+                start=max(1, len(campaigns) - 4),
+        ):
+            status = "ACTIVE" if campaign.is_active else "INACTIVE"
+
+            filled = len([
+                order
+                for order in campaign.orders
+                if order.status == "FILLED"
+            ])
+
+            recent_campaigns.append(
+                f"#{index} {status} "
+                f"orders={len(campaign.orders)} "
                 f"filled={filled}"
             )
 
-    def campaign_orders(self, orders: list[Order]) -> None:
-        self.campaign("Orders:")
-
-        for order in orders:
-            price = (
-                f"{order.request.price:.4f}"
-                if order.request.price is not None
-                else (
-                    f"{order.average_fill_price:.4f}"
-                    if order.average_fill_price is not None
-                    else "-"
+        if recent_campaigns:
+            self._detail(
+                "recent: " + " || ".join(recent_campaigns),
+                indent=2,
                 )
-            )
 
-            average_fill_price = (
-                f"{order.average_fill_price:.4f}"
-                if order.average_fill_price is not None
-                else "-"
-            )
+    def _print(self, tag: str, message: str, indent: int = 0) -> None:
+        print(f"{self.INDENT * indent}[{tag:<6}] {message}")
 
-            self.order(
-                f"#{order.order_id} | "
-                f"{order.request.side} {order.request.order_type} | "
-                f"qty={order.request.quantity} | "
-                f"price={price} | "
-                f"status={order.status} | "
-                f"filled={order.filled_quantity} | "
-                f"avg_fill={average_fill_price}"
-            )
+    def _detail(self, message: str, indent: int = 2) -> None:
+        print(f"{self.INDENT * indent}{message}")
+
+    def _blank_line(self) -> None:
+        print()

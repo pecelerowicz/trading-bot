@@ -20,6 +20,7 @@ class TradingSession:
 
         self.logger.candle(kline)
         self.klines.append(kline)
+
         await self._sync_current_campaign_orders(kline)
 
         signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
@@ -58,45 +59,69 @@ class TradingSession:
             self.logger.campaign("Open signal ignored: current campaign already exists")
             return
 
-        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
+        self.logger.campaign("Opening campaign")
 
+        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
         campaign = Campaign(orders=orders, is_active=True)
 
         self.current_campaign = campaign
         self.campaigns.append(campaign)
 
         self.logger.campaign("Opened campaign")
-        self.logger.campaign_summary(campaign)
-        self.logger.campaign_history(self.campaigns)
 
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is None:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
-        self.current_campaign.orders = await self.executor.cancel_orders(
-            orders=self.current_campaign.orders,
-            order_ids_to_cancel=signal.order_ids_to_cancel,
-        )
+        self.logger.campaign("Closing campaign")
+
+        self.current_campaign.orders = await self._cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
+        self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
 
         close_orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-
         self.current_campaign.orders.extend(close_orders)
+        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
+
         self.current_campaign.is_active = False
 
         self.logger.campaign("Closed campaign")
-        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
-        self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
         self.logger.campaign_summary(self.current_campaign)
-        self.logger.campaign_history(self.campaigns)
+        self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
 
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent, ) -> list[Order]:
+    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
+        updated_orders: list[Order] = []
+        canceled_orders: list[Order] = []
+
+        for order in orders:
+            if order.order_id not in order_ids_to_cancel:
+                updated_orders.append(order)
+                continue
+
+            previous_status = order.status
+            canceled_order = await self.executor.cancel_order(order)
+            updated_orders.append(canceled_order)
+
+            if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
+                canceled_orders.append(canceled_order)
+
+        self.logger.canceled_orders(canceled_orders)
+
+        return updated_orders
+
+    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent,) -> list[Order]:
         orders: list[Order] = []
 
         for order_request in order_requests:
             order = await self.executor.place_order(order_request=order_request, kline=kline)
             orders.append(order)
+
+        self.logger.placed_orders(orders)
+
+        for order in orders:
+            if order.status == "FILLED" and order.request.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
 
         return orders
