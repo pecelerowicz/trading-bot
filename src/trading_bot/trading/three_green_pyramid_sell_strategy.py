@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import OrderRequest
 from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
@@ -25,11 +27,11 @@ class ThreeGreenPyramidSellStrategy:
                     summary = current_campaign.execution_summary()
 
                     quantity_to_buy_back = summary.sold_base - summary.bought_base
-                    quantity_to_buy_back = max(quantity_to_buy_back, 0.0)
+                    quantity_to_buy_back = max(quantity_to_buy_back, Decimal("0.0"))
 
                     order_requests: list[OrderRequest] = []
 
-                    if quantity_to_buy_back > 0:
+                    if quantity_to_buy_back > Decimal("0"):
                         order_requests.append(
                             OrderRequest(
                                 side="BUY",
@@ -68,12 +70,12 @@ class ThreeGreenPyramidSellStrategy:
         order_requests: list[OrderRequest] = []
 
         for i in range(10):
-            price = current_close * (1 + i * 0.0002)
+            price = current_close * (1 + i * Decimal("0.0002"))
             order_requests.append(
                 OrderRequest(
                     side="SELL",
                     order_type="LIMIT",
-                    quantity=1.0,
+                    quantity=Decimal("1.0"),
                     price=round(price, 2),
                 )
             )

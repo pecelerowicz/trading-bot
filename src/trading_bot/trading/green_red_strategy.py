@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.order import OrderRequest
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign, StrategySignal
@@ -22,14 +24,14 @@ class GreenRedStrategy:
                 OrderRequest(
                     side="BUY",
                     order_type="LIMIT",
-                    quantity=1.0,
-                    price=kline.close * 0.99,
+                    quantity=Decimal("1.0"),
+                    price=kline.close * Decimal("0.99"),
                 ),
                 OrderRequest(
                     side="BUY",
                     order_type="LIMIT",
-                    quantity=1.0,
-                    price=kline.close * 0.98,
+                    quantity=Decimal("1.0"),
+                    price=kline.close * Decimal("0.98"),
                 ),
             ]
 
@@ -51,7 +53,7 @@ class GreenRedStrategy:
                 OrderRequest(
                     side="SELL",
                     order_type="MARKET",
-                    quantity=1.0,
+                    quantity=Decimal("1.0"),
                 )
             ]
 

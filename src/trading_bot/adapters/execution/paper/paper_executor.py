@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.order import Order, OrderRequest
@@ -17,7 +19,7 @@ class PaperExecutor:
                 order_id=order_id,
                 request=order_request,
                 status="REJECTED",
-                filled_quantity=0.0,
+                filled_quantity=Decimal("0.0"),
                 average_fill_price=None,
             )
 
@@ -34,7 +36,7 @@ class PaperExecutor:
             order_id=order_id,
             request=order_request,
             status="NEW",
-            filled_quantity=0.0,
+            filled_quantity=Decimal("0.0"),
             average_fill_price=None,
         )
 

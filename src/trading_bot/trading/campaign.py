@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from decimal import Decimal
 
 from trading_bot.trading.order import Order
 
@@ -7,17 +8,17 @@ from trading_bot.trading.order import Order
 class CampaignExecutionSummary:
     is_active: bool
 
-    bought_base: float = 0.0
-    sold_base: float = 0.0
+    bought_base: Decimal = Decimal("0.0")
+    sold_base: Decimal = Decimal("0.0")
 
-    spent_quote: float = 0.0
-    received_quote: float = 0.0
+    spent_quote: Decimal = Decimal("0.0")
+    received_quote: Decimal = Decimal("0.0")
 
-    net_base_delta: float = 0.0
-    net_quote_delta: float = 0.0
+    net_base_delta: Decimal = Decimal("0.0")
+    net_quote_delta: Decimal = Decimal("0.0")
 
-    average_buy_price: float | None = None
-    average_sell_price: float | None = None
+    average_buy_price: Decimal | None = None
+    average_sell_price: Decimal | None = None
 
 
 @dataclass
@@ -41,14 +42,14 @@ class Campaign:
         return None
 
     def execution_summary(self) -> CampaignExecutionSummary:
-        bought_base = 0.0
-        sold_base = 0.0
+        bought_base = Decimal("0.0")
+        sold_base = Decimal("0.0")
 
-        spent_quote = 0.0
-        received_quote = 0.0
+        spent_quote = Decimal("0.0")
+        received_quote = Decimal("0.0")
 
         for order in self.orders:
-            if order.filled_quantity <= 0:
+            if order.filled_quantity <= Decimal("0.0"):
                 continue
 
             if order.average_fill_price is None:
