@@ -15,7 +15,7 @@ class OrderRequest:
 
 OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED"]
 
-@dataclass
+@dataclass(frozen=True)
 class Order:
     order_id: str
     request: OrderRequest

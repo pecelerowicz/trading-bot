@@ -1,3 +1,4 @@
+from dataclasses import replace
 from decimal import Decimal
 
 from trading_bot.models.kline_event import KlineEvent
@@ -42,7 +43,10 @@ class PaperExecutor:
 
     async def cancel_order(self, order: Order) -> Order:
         if order.status in {"NEW", "PARTIALLY_FILLED"}:
-            order.status = "CANCELED"
+            return replace(
+                order,
+                status="CANCELED"
+            )
 
         return order
 
@@ -58,10 +62,16 @@ class PaperExecutor:
         buy_filled = request.side == "BUY" and kline.low <= request.price
         sell_filled = request.side == "SELL" and kline.high >= request.price
 
-        if buy_filled or sell_filled:
-            order.status = "FILLED"
-            order.filled_quantity = request.quantity
-            order.average_fill_price = request.price
-            self.logger.fill_limit_order(order, kline)
+        if not (buy_filled or sell_filled):
+            return order
 
-        return order
+        updated_order = replace(
+            order,
+            status="FILLED",
+            filled_quantity=request.quantity,
+            average_fill_price=request.price,
+        )
+
+        self.logger.fill_limit_order(updated_order, kline)
+
+        return updated_order
