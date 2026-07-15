@@ -7,7 +7,7 @@ from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyra
 from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
 from trading_bot.trading.trading_session import TradingSession
-from trading_bot.adapters.execution.paper.paper_executor import PaperExecutor
+from trading_bot.adapters.executor.paper.paper_executor import PaperExecutor
 
 
 async def main():
