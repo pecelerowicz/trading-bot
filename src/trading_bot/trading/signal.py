@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import TypeAlias
 
-from trading_bot.trading.order import OrderRequest
+from trading_bot.models.order import OrderRequest
 
 
 @dataclass(frozen=True)

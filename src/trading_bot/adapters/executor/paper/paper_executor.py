@@ -1,15 +1,37 @@
 from dataclasses import replace
 from decimal import Decimal
 
+from trading_bot.models.account import AssetBalance, AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.debug_logger import TradingDebugLogger
-from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.models.order import Order, OrderRequest
 
 
 class PaperExecutor:
-    def __init__(self, logger: TradingDebugLogger) -> None:
+    def __init__(self, logger: TradingDebugLogger, initial_balances: dict[str, Decimal] | None = None) -> None:
         self._next_order_id = 1
-        self.logger = logger
+        self._logger = logger
+
+        balances = initial_balances or {}
+
+        for asset, amount in balances.items():
+            if not asset:
+                raise ValueError("Asset name cannot be empty")
+
+            if amount < 0:
+                raise ValueError(
+                    f"Initial balance cannot be negative: "
+                    f"{asset}={amount}"
+                )
+
+        self._balances: dict[str, AssetBalance] = {
+            asset: AssetBalance(
+                asset=asset,
+                free=amount,
+                locked=Decimal("0"),
+            )
+            for asset, amount in balances.items()
+        }
 
     async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
         order_id = str(self._next_order_id)
@@ -72,6 +94,14 @@ class PaperExecutor:
             average_fill_price=request.price,
         )
 
-        self.logger.fill_limit_order(updated_order, kline)
+        self._logger.fill_limit_order(updated_order, kline)
 
         return updated_order
+
+    async def get_account_snapshot(self) -> AccountSnapshot:
+        return AccountSnapshot(
+            balances=tuple(
+                self._balances[asset]
+                for asset in sorted(self._balances)
+            )
+        )

@@ -1,6 +1,6 @@
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.debug_logger import TradingDebugLogger
-from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.models.order import Order, OrderRequest
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 from trading_bot.trading.campaign import Campaign
 from trading_bot.ports.executor import Executor

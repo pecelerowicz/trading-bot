@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.models.order import Order, OrderRequest
 from trading_bot.trading.campaign import Campaign
 
 

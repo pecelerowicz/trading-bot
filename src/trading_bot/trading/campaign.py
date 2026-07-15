@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from trading_bot.trading.order import Order
+from trading_bot.models.order import Order
 
 
 @dataclass(frozen=True)

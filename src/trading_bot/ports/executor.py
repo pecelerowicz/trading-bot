@@ -1,7 +1,8 @@
 from typing import Protocol
 
+from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.models.order import Order, OrderRequest
 
 
 class Executor(Protocol):
@@ -23,4 +24,7 @@ class Executor(Protocol):
         self,
         order: Order,
     ) -> Order:
+        ...
+
+    async def get_account_snapshot(self) -> AccountSnapshot:
         ...
