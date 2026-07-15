@@ -1,9 +1,9 @@
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.models.order import Order, OrderRequest
-from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
-from trading_bot.trading.campaign import Campaign
 from trading_bot.ports.executor import Executor
+from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.debug_logger import TradingDebugLogger
+from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 
 
 class TradingSession:
@@ -22,6 +22,7 @@ class TradingSession:
         self.logger.candle(kline)
         self.klines.append(kline)
 
+        await self.executor.process_kline(kline)
         await self._sync_current_campaign_orders(kline)
 
         signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
@@ -47,11 +48,11 @@ class TradingSession:
         if self.current_campaign is None:
             return
 
-        updated_orders = []
+        updated_orders: list[Order] = []
 
         for order in self.current_campaign.orders:
-            updated = await self.executor.sync_order_status(order, kline)
-            updated_orders.append(updated)
+            updated_order = await self.executor.sync_order_status(order, kline)
+            updated_orders.append(updated_order)
 
         self.current_campaign.orders = updated_orders
 
@@ -112,7 +113,7 @@ class TradingSession:
 
         return updated_orders
 
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent,) -> list[Order]:
+    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
         orders: list[Order] = []
 
         for order_request in order_requests:

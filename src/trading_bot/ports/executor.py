@@ -6,24 +6,16 @@ from trading_bot.models.order import Order, OrderRequest
 
 
 class Executor(Protocol):
-    async def place_order(
-        self,
-        order_request: OrderRequest,
-        kline: KlineEvent,
-    ) -> Order:
+    async def process_kline(self, kline: KlineEvent) -> None:
         ...
 
-    async def sync_order_status(
-        self,
-        order: Order,
-        kline: KlineEvent,
-    ) -> Order:
+    async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
         ...
 
-    async def cancel_order(
-        self,
-        order: Order,
-    ) -> Order:
+    async def sync_order_status(self, order: Order, kline: KlineEvent) -> Order:
+        ...
+
+    async def cancel_order(self, order: Order) -> Order:
         ...
 
     async def get_account_snapshot(self) -> AccountSnapshot:

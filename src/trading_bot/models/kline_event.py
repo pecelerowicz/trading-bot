@@ -3,7 +3,6 @@ from datetime import datetime
 from decimal import Decimal
 
 
-#TODO float -> Decimal
 @dataclass
 class KlineEvent:
     event_time: datetime | None
