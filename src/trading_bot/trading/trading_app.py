@@ -1,10 +1,11 @@
+from trading_bot.ports.market_data_source import MarketDataSource
 from trading_bot.trading.trading_session import TradingSession
 
 
 class TradingApp:
     def __init__(
         self,
-        market_data_source,
+        market_data_source: MarketDataSource,
         trading_session: TradingSession,
     ):
         self.market_data_source = market_data_source
