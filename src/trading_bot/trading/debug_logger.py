@@ -1,5 +1,7 @@
+from decimal import Decimal
+
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.trading.order import Order, OrderRequest
+from trading_bot.models.order import Order, OrderRequest
 from trading_bot.trading.campaign import Campaign
 
 
@@ -7,7 +9,7 @@ class TradingDebugLogger:
     INDENT = "    "
 
     def candle(self, kline: KlineEvent) -> None:
-        if abs(kline.close - kline.open) < 0.0001:
+        if abs(kline.close - kline.open) < Decimal("0.0001"):
             color = "⚪ DOJI"
         elif kline.close > kline.open:
             color = "🟢 GREEN"
