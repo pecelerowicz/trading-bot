@@ -2,10 +2,13 @@ import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
 
+
 @dataclass(frozen=True)
 class AppConfig:
     binance_env: str
     symbol: str
+    base_asset: str
+    quote_asset: str
     interval: str
 
     api_key: str | None = None
@@ -46,6 +49,8 @@ def load_app_config() -> AppConfig:
     return AppConfig(
         binance_env=binance_env,
         symbol=os.getenv("SYMBOL"),
+        base_asset=os.getenv("BASE_ASSET"),
+        quote_asset=os.getenv("QUOTE_ASSET"),
         interval=os.getenv("INTERVAL"),
         api_key=api_key,
         api_secret=api_secret,
