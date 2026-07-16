@@ -2,37 +2,34 @@ from dataclasses import replace
 from decimal import Decimal
 
 from trading_bot.models.account import AssetBalance, AccountSnapshot
+from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.models.order import Order, OrderRequest
 
 
 class PaperExecutor:
-    def __init__(self, logger: TradingDebugLogger, initial_balances: dict[str, Decimal] | None = None) -> None:
+    def __init__(self, logger: TradingDebugLogger, instrument: Instrument, initial_account: AccountSnapshot) -> None:
         self._next_order_id = 1
         self._logger = logger
+        self._instrument = instrument
         self._orders: dict[str, Order] = {}
-
-        balances = initial_balances or {}
-
-        for asset, amount in balances.items():
-            if not asset:
-                raise ValueError("Asset name cannot be empty")
-
-            if amount < 0:
-                raise ValueError(
-                    f"Initial balance cannot be negative: "
-                    f"{asset}={amount}"
-                )
-
         self._balances: dict[str, AssetBalance] = {
-            asset: AssetBalance(
-                asset=asset,
-                free=amount,
-                locked=Decimal("0"),
-            )
-            for asset, amount in balances.items()
+            balance.asset: balance
+            for balance in initial_account.balances
         }
+
+        required_assets = {
+            instrument.base_asset,
+            instrument.quote_asset,
+        }
+
+        missing_assets = required_assets.difference(self._balances)
+
+        if missing_assets:
+            raise ValueError(
+                f"Missing initial balances for: {sorted(missing_assets)}"
+            )
 
     async def process_kline(self, kline: KlineEvent) -> None:
         for order_id, order in tuple(self._orders.items()):
@@ -98,9 +95,7 @@ class PaperExecutor:
         try:
             stored_order = self._orders[order.order_id]
         except KeyError as error:
-            raise KeyError(
-                f"Unknown paper order: {order.order_id}"
-            ) from error
+            raise KeyError(f"Unknown paper order: {order.order_id}") from error
 
         if stored_order.status not in {"NEW", "PARTIALLY_FILLED"}:
             return stored_order
@@ -119,9 +114,7 @@ class PaperExecutor:
         try:
             return self._orders[order.order_id]
         except KeyError as error:
-            raise KeyError(
-                f"Unknown paper order: {order.order_id}"
-            ) from error
+            raise KeyError(f"Unknown paper order: {order.order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
