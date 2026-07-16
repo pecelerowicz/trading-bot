@@ -19,18 +19,6 @@ class PaperExecutor:
             for balance in initial_account.balances
         }
 
-        required_assets = {
-            instrument.base_asset,
-            instrument.quote_asset,
-        }
-
-        missing_assets = required_assets.difference(self._balances)
-
-        if missing_assets:
-            raise ValueError(
-                f"Missing initial balances for: {sorted(missing_assets)}"
-            )
-
     async def process_kline(self, kline: KlineEvent) -> None:
         for order_id, order in tuple(self._orders.items()):
             if order.status not in {"NEW", "PARTIALLY_FILLED"}:
