@@ -65,6 +65,127 @@ class PaperExecutor:
 
         return True
 
+    def _try_reserve_limit_order(self, order_request: OrderRequest) -> bool:
+        if order_request.price is None:
+            return False
+
+        base_asset = self._instrument.base_asset
+        quote_asset = self._instrument.quote_asset
+
+        base_balance = self._balances_by_asset[base_asset]
+        quote_balance = self._balances_by_asset[quote_asset]
+
+        quantity = order_request.quantity
+        quote_quantity = quantity * order_request.price
+
+        if order_request.side == "BUY":
+            if quote_balance.free < quote_quantity:
+                return False
+
+            updated_quote_balance = replace(
+                quote_balance,
+                free=quote_balance.free - quote_quantity,
+                locked=quote_balance.locked + quote_quantity,
+            )
+
+            self._balances_by_asset[quote_asset] = updated_quote_balance
+            return True
+
+        if order_request.side == "SELL":
+            if base_balance.free < quantity:
+                return False
+
+            updated_base_balance = replace(
+                base_balance,
+                free=base_balance.free - quantity,
+                locked=base_balance.locked + quantity,
+            )
+
+            self._balances_by_asset[base_asset] = updated_base_balance
+            return True
+
+        raise ValueError(f"Unsupported order side: {order_request.side}")
+
+    def _settle_limit_order(self, order: Order) -> None:
+        request = order.request
+
+        if request.price is None:
+            raise RuntimeError(f"Limit order {order.order_id} has no price")
+
+        base_asset = self._instrument.base_asset
+        quote_asset = self._instrument.quote_asset
+
+        base_balance = self._balances_by_asset[base_asset]
+        quote_balance = self._balances_by_asset[quote_asset]
+
+        quantity = request.quantity
+        quote_quantity = quantity * request.price
+
+        if request.side == "BUY":
+            updated_base_balance = replace(
+                base_balance,
+                free=base_balance.free + quantity,
+            )
+
+            updated_quote_balance = replace(
+                quote_balance,
+                locked=quote_balance.locked - quote_quantity,
+            )
+
+        elif request.side == "SELL":
+            updated_base_balance = replace(
+                base_balance,
+                locked=base_balance.locked - quantity,
+            )
+
+            updated_quote_balance = replace(
+                quote_balance,
+                free=quote_balance.free + quote_quantity,
+            )
+
+        else:
+            raise ValueError(f"Unsupported order side: {request.side}")
+
+        self._balances_by_asset[base_asset] = updated_base_balance
+        self._balances_by_asset[quote_asset] = updated_quote_balance
+
+    def _release_limit_order(self, order: Order) -> None:
+        request = order.request
+
+        if request.price is None:
+            raise RuntimeError(f"Limit order {order.order_id} has no price")
+
+        base_asset = self._instrument.base_asset
+        quote_asset = self._instrument.quote_asset
+
+        base_balance = self._balances_by_asset[base_asset]
+        quote_balance = self._balances_by_asset[quote_asset]
+
+        quantity = request.quantity
+        quote_quantity = quantity * request.price
+
+        if request.side == "BUY":
+            updated_quote_balance = replace(
+                quote_balance,
+                free=quote_balance.free + quote_quantity,
+                locked=quote_balance.locked - quote_quantity,
+            )
+
+            self._balances_by_asset[quote_asset] = updated_quote_balance
+            return
+
+        if request.side == "SELL":
+            updated_base_balance = replace(
+                base_balance,
+                free=base_balance.free + quantity,
+                locked=base_balance.locked - quantity,
+            )
+
+            self._balances_by_asset[base_asset] = updated_base_balance
+            return
+
+        raise ValueError(f"Unsupported order side: {request.side}")
+
     async def process_kline(self, kline: KlineEvent) -> None:
         for order_id, order in tuple(self._orders_by_id.items()):
             if order.status not in {"NEW", "PARTIALLY_FILLED"}:
@@ -80,6 +201,8 @@ class PaperExecutor:
 
             if not (buy_filled or sell_filled):
                 continue
+
+            self._settle_limit_order(order)
 
             updated_order = replace(
                 order,
@@ -126,13 +249,24 @@ class PaperExecutor:
                 )
 
         else:
-            order = Order(
-                order_id=order_id,
-                request=order_request,
-                status="NEW",
-                filled_quantity=Decimal("0.0"),
-                average_fill_price=None,
-            )
+            was_accepted = self._try_reserve_limit_order(order_request)
+
+            if was_accepted:
+                order = Order(
+                    order_id=order_id,
+                    request=order_request,
+                    status="NEW",
+                    filled_quantity=Decimal("0.0"),
+                    average_fill_price=None,
+                )
+            else:
+                order = Order(
+                    order_id=order_id,
+                    request=order_request,
+                    status="REJECTED",
+                    filled_quantity=Decimal("0.0"),
+                    average_fill_price=None,
+                )
 
         self._orders_by_id[order_id] = order
         return order
@@ -145,6 +279,9 @@ class PaperExecutor:
 
         if stored_order.status not in {"NEW", "PARTIALLY_FILLED"}:
             return stored_order
+
+        if stored_order.request.order_type == "LIMIT":
+            self._release_limit_order(stored_order)
 
         updated_order = replace(
             stored_order,
