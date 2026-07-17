@@ -19,6 +19,19 @@ class PaperExecutor:
             for balance in initial_account.balances
         }
 
+    def _print_balances(self) -> None:
+        print("ACCOUNT")
+
+        for asset in sorted(self._balances_by_asset):
+            balance = self._balances_by_asset[asset]
+
+            print(
+                f"  {asset}: "
+                f"free={balance.free} | "
+                f"locked={balance.locked} | "
+                f"total={balance.total}"
+            )
+
     def _try_settle_market_order(self, order_request: OrderRequest, execution_price: Decimal) -> bool:
         base_asset = self._instrument.base_asset
         quote_asset = self._instrument.quote_asset
@@ -213,6 +226,8 @@ class PaperExecutor:
 
             self._orders_by_id[order_id] = updated_order
             self._logger.fill_limit_order(updated_order, kline)
+
+        self._print_balances()
 
     async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
         order_id = str(self._next_order_id)
