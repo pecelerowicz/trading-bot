@@ -13,6 +13,7 @@ class PaperExecutor:
         self._next_order_id = 1
         self._logger = logger
         self._instrument = instrument
+        self._current_kline: KlineEvent | None = None
         self._orders_by_id: dict[str, Order] = {}
         self._balances_by_asset: dict[str, AssetBalance] = {
             balance.asset: balance
@@ -31,6 +32,12 @@ class PaperExecutor:
                 f"locked={balance.locked} | "
                 f"total={balance.total}"
             )
+
+    def _get_current_kline(self) -> KlineEvent:
+        if self._current_kline is None:
+            raise RuntimeError("PaperExecutor has not received a kline yet")
+
+        return self._current_kline
 
     def _try_settle_market_order(self, order_request: OrderRequest, execution_price: Decimal) -> bool:
         base_asset = self._instrument.base_asset
@@ -200,6 +207,8 @@ class PaperExecutor:
         raise ValueError(f"Unsupported order side: {request.side}")
 
     async def process_kline(self, kline: KlineEvent) -> None:
+        self._current_kline = kline
+
         for order_id, order in tuple(self._orders_by_id.items()):
             if order.status not in {"NEW", "PARTIALLY_FILLED"}:
                 continue
@@ -229,7 +238,7 @@ class PaperExecutor:
 
         self._print_balances()
 
-    async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
+    async def place_order(self, order_request: OrderRequest) -> Order:
         order_id = str(self._next_order_id)
         self._next_order_id += 1
 
@@ -243,7 +252,7 @@ class PaperExecutor:
             )
 
         elif order_request.order_type == "MARKET":
-            execution_price = kline.close
+            execution_price = self._get_current_kline().close
             was_filled = self._try_settle_market_order(order_request, execution_price)
 
             if was_filled:

@@ -117,7 +117,7 @@ class TradingSession:
         orders: list[Order] = []
 
         for order_request in order_requests:
-            order = await self.executor.place_order(order_request=order_request, kline=kline)
+            order = await self.executor.place_order(order_request=order_request)
             orders.append(order)
 
         self.logger.placed_orders(orders)

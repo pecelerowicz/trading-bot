@@ -9,7 +9,7 @@ class Executor(Protocol):
     async def process_kline(self, kline: KlineEvent) -> None:
         ...
 
-    async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
+    async def place_order(self, order_request: OrderRequest) -> Order:
         ...
 
     async def sync_order_status(self, order: Order, kline: KlineEvent) -> Order:
