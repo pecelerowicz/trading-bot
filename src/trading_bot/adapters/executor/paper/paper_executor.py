@@ -13,14 +13,14 @@ class PaperExecutor:
         self._next_order_id = 1
         self._logger = logger
         self._instrument = instrument
-        self._orders: dict[str, Order] = {}
-        self._balances: dict[str, AssetBalance] = {
+        self._orders_by_id: dict[str, Order] = {}
+        self._balances_by_asset: dict[str, AssetBalance] = {
             balance.asset: balance
             for balance in initial_account.balances
         }
 
     async def process_kline(self, kline: KlineEvent) -> None:
-        for order_id, order in tuple(self._orders.items()):
+        for order_id, order in tuple(self._orders_by_id.items()):
             if order.status not in {"NEW", "PARTIALLY_FILLED"}:
                 continue
 
@@ -42,7 +42,7 @@ class PaperExecutor:
                 average_fill_price=request.price,
             )
 
-            self._orders[order_id] = updated_order
+            self._orders_by_id[order_id] = updated_order
             self._logger.fill_limit_order(updated_order, kline)
 
     async def place_order(self, order_request: OrderRequest, kline: KlineEvent) -> Order:
@@ -76,12 +76,12 @@ class PaperExecutor:
                 average_fill_price=None,
             )
 
-        self._orders[order_id] = order
+        self._orders_by_id[order_id] = order
         return order
 
     async def cancel_order(self, order: Order) -> Order:
         try:
-            stored_order = self._orders[order.order_id]
+            stored_order = self._orders_by_id[order.order_id]
         except KeyError as error:
             raise KeyError(f"Unknown paper order: {order.order_id}") from error
 
@@ -93,21 +93,21 @@ class PaperExecutor:
             status="CANCELED",
         )
 
-        self._orders[order.order_id] = updated_order
+        self._orders_by_id[order.order_id] = updated_order
         return updated_order
 
     async def sync_order_status(self, order: Order, kline: KlineEvent) -> Order:
         del kline
 
         try:
-            return self._orders[order.order_id]
+            return self._orders_by_id[order.order_id]
         except KeyError as error:
             raise KeyError(f"Unknown paper order: {order.order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
             balances=tuple(
-                self._balances[asset]
-                for asset in sorted(self._balances)
+                self._balances_by_asset[asset]
+                for asset in sorted(self._balances_by_asset)
             )
         )
