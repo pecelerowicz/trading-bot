@@ -19,6 +19,52 @@ class PaperExecutor:
             for balance in initial_account.balances
         }
 
+    def _try_settle_market_order(self, order_request: OrderRequest, execution_price: Decimal) -> bool:
+        base_asset = self._instrument.base_asset
+        quote_asset = self._instrument.quote_asset
+
+        base_balance = self._balances_by_asset[base_asset]
+        quote_balance = self._balances_by_asset[quote_asset]
+
+        quantity = order_request.quantity
+        quote_quantity = quantity * execution_price
+
+        if order_request.side == "BUY":
+            if quote_balance.free < quote_quantity:
+                return False
+
+            updated_base_balance = replace(
+                base_balance,
+                free=base_balance.free + quantity,
+            )
+
+            updated_quote_balance = replace(
+                quote_balance,
+                free=quote_balance.free - quote_quantity,
+            )
+
+        elif order_request.side == "SELL":
+            if base_balance.free < quantity:
+                return False
+
+            updated_base_balance = replace(
+                base_balance,
+                free=base_balance.free - quantity,
+            )
+
+            updated_quote_balance = replace(
+                quote_balance,
+                free=quote_balance.free + quote_quantity,
+            )
+
+        else:
+            raise ValueError(f"Unsupported order side: {order_request.side}")
+
+        self._balances_by_asset[base_asset] = updated_base_balance
+        self._balances_by_asset[quote_asset] = updated_quote_balance
+
+        return True
+
     async def process_kline(self, kline: KlineEvent) -> None:
         for order_id, order in tuple(self._orders_by_id.items()):
             if order.status not in {"NEW", "PARTIALLY_FILLED"}:
@@ -59,13 +105,25 @@ class PaperExecutor:
             )
 
         elif order_request.order_type == "MARKET":
-            order = Order(
-                order_id=order_id,
-                request=order_request,
-                status="FILLED",
-                filled_quantity=order_request.quantity,
-                average_fill_price=kline.close,
-            )
+            execution_price = kline.close
+            was_filled = self._try_settle_market_order(order_request, execution_price)
+
+            if was_filled:
+                order = Order(
+                    order_id=order_id,
+                    request=order_request,
+                    status="FILLED",
+                    filled_quantity=order_request.quantity,
+                    average_fill_price=execution_price,
+                )
+            else:
+                order = Order(
+                    order_id=order_id,
+                    request=order_request,
+                    status="REJECTED",
+                    filled_quantity=Decimal("0.0"),
+                    average_fill_price=None,
+                )
 
         else:
             order = Order(
