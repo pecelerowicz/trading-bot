@@ -23,7 +23,7 @@ class TradingSession:
         self.klines.append(kline)
 
         await self.executor.process_kline(kline)
-        await self._sync_current_campaign_orders(kline)
+        await self._sync_current_campaign_orders()
 
         signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
 
@@ -44,14 +44,14 @@ class TradingSession:
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
         return False
 
-    async def _sync_current_campaign_orders(self, kline: KlineEvent) -> None:
+    async def _sync_current_campaign_orders(self) -> None:
         if self.current_campaign is None:
             return
 
         updated_orders: list[Order] = []
 
         for order in self.current_campaign.orders:
-            updated_order = await self.executor.sync_order_status(order, kline)
+            updated_order = await self.executor.sync_order_status(order)
             updated_orders.append(updated_order)
 
         self.current_campaign.orders = updated_orders
@@ -85,6 +85,7 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
+        # TODO: Close the campaign only after closing orders are filled and exposure is neutral.
         self.current_campaign.is_active = False
 
         self.logger.campaign("Closed campaign")

@@ -8,6 +8,7 @@ from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.models.order import Order, OrderRequest
 
 
+# TODO: Extract account settlement if fees, partial fills, or multiple instruments make this class grow further.
 class PaperExecutor:
     def __init__(self, logger: TradingDebugLogger, instrument: Instrument, initial_account: AccountSnapshot) -> None:
         self._next_order_id = 1
@@ -20,6 +21,7 @@ class PaperExecutor:
             for balance in initial_account.balances
         }
 
+    # TODO: Replace temporary balance printing with configurable logging.
     def _print_balances(self) -> None:
         print("ACCOUNT")
 
@@ -86,7 +88,7 @@ class PaperExecutor:
         return True
 
     def _try_reserve_limit_order(self, order_request: OrderRequest) -> bool:
-        if order_request.price is None:
+        if order_request.price is None or order_request.price <= 0:
             return False
 
         base_asset = self._instrument.base_asset
@@ -210,7 +212,8 @@ class PaperExecutor:
         self._current_kline = kline
 
         for order_id, order in tuple(self._orders_by_id.items()):
-            if order.status not in {"NEW", "PARTIALLY_FILLED"}:
+            # TODO: Add proper partial-fill settlement before handling PARTIALLY_FILLED orders.
+            if order.status != "NEW":
                 continue
 
             request = order.request
@@ -272,7 +275,7 @@ class PaperExecutor:
                     average_fill_price=None,
                 )
 
-        else:
+        elif order_request.order_type == "LIMIT":
             was_accepted = self._try_reserve_limit_order(order_request)
 
             if was_accepted:
@@ -292,6 +295,9 @@ class PaperExecutor:
                     average_fill_price=None,
                 )
 
+        else:
+            raise ValueError(f"Unsupported order type: {order_request.order_type}")
+
         self._orders_by_id[order_id] = order
         return order
 
@@ -301,7 +307,8 @@ class PaperExecutor:
         except KeyError as error:
             raise KeyError(f"Unknown paper order: {order.order_id}") from error
 
-        if stored_order.status not in {"NEW", "PARTIALLY_FILLED"}:
+        # TODO: Release only the unfilled reservation when partial fills are supported.
+        if stored_order.status != "NEW":
             return stored_order
 
         if stored_order.request.order_type == "LIMIT":
@@ -315,9 +322,7 @@ class PaperExecutor:
         self._orders_by_id[order.order_id] = updated_order
         return updated_order
 
-    async def sync_order_status(self, order: Order, kline: KlineEvent) -> Order:
-        del kline
-
+    async def sync_order_status(self, order: Order) -> Order:
         try:
             return self._orders_by_id[order.order_id]
         except KeyError as error:
