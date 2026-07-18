@@ -1,12 +1,18 @@
 import os
 from dataclasses import dataclass
+from decimal import Decimal
 from dotenv import load_dotenv
+
 
 @dataclass(frozen=True)
 class AppConfig:
     binance_env: str
     symbol: str
+    base_asset: str
+    quote_asset: str
     interval: str
+    paper_initial_base_balance: Decimal
+    paper_initial_quote_balance: Decimal
 
     api_key: str | None = None
     api_secret: str | None = None
@@ -46,10 +52,14 @@ def load_app_config() -> AppConfig:
     return AppConfig(
         binance_env=binance_env,
         symbol=os.getenv("SYMBOL"),
+        base_asset=os.getenv("BASE_ASSET"),
+        quote_asset=os.getenv("QUOTE_ASSET"),
         interval=os.getenv("INTERVAL"),
+        paper_initial_base_balance=Decimal(os.getenv("PAPER_INITIAL_BASE_BALANCE", "0")),
+        paper_initial_quote_balance=Decimal(os.getenv("PAPER_INITIAL_QUOTE_BALANCE", "0")),
         api_key=api_key,
         api_secret=api_secret,
         mock_initial_date=os.getenv("MOCK_INITIAL_DATE"),
         mock_final_date=os.getenv("MOCK_FINAL_DATE"),
-        mock_delay_seconds=float(os.getenv("MOCK_DELAY_SECONDS")),
+        mock_delay_seconds=float(os.getenv("MOCK_DELAY_SECONDS", "0")),
     )
