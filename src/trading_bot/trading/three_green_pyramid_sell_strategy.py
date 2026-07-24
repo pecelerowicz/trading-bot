@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
 from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
@@ -8,11 +10,15 @@ from trading_bot.trading.campaign import Campaign
 
 class ThreeGreenPyramidSellStrategy:
 
+    def __init__(self, instrument: Instrument) -> None:
+        self.instrument = instrument
+
     def on_kline(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
         current_campaign: Campaign | None,
+        account_snapshot: AccountSnapshot
     ) -> StrategySignal:
 
         # === CLOSING LOGIC ===
@@ -32,6 +38,11 @@ class ThreeGreenPyramidSellStrategy:
                     order_requests: list[OrderRequest] = []
 
                     if quantity_to_buy_back > Decimal("0"):
+                        required_quote = quantity_to_buy_back * kline.close
+
+                        if not account_snapshot.has_free_balance(self.instrument.quote_asset, required_quote):
+                            return NoAction()
+
                         order_requests.append(
                             OrderRequest(
                                 side="BUY",
@@ -79,5 +90,16 @@ class ThreeGreenPyramidSellStrategy:
                     price=round(price, 2),
                 )
             )
+
+        required_base = sum(
+            (
+                order_request.quantity
+                for order_request in order_requests
+            ),
+            Decimal("0")
+        )
+
+        if not account_snapshot.has_free_balance(self.instrument.base_asset, required_base):
+            return NoAction()
 
         return OpenCampaign(order_requests=order_requests)

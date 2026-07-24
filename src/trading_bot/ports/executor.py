@@ -6,8 +6,8 @@ from trading_bot.models.order import Order, OrderRequest
 
 
 class Executor(Protocol):
-    # TODO: Revisit whether process_kline belongs in the common port after BinanceExecutor is implemented.
-    async def process_kline(self, kline: KlineEvent) -> None:
+    # TODO: Revisit whether update_executor belongs in the common port after BinanceExecutor is implemented.
+    async def update_executor(self, kline: KlineEvent) -> None:
         ...
 
     async def place_order(self, order_request: OrderRequest) -> Order:

@@ -208,7 +208,7 @@ class PaperExecutor:
 
         raise ValueError(f"Unsupported order side: {request.side}")
 
-    async def process_kline(self, kline: KlineEvent) -> None:
+    async def update_executor(self, kline: KlineEvent) -> None:
         self._current_kline = kline
 
         for order_id, order in tuple(self._orders_by_id.items()):

@@ -31,7 +31,7 @@ async def main():
             ),
         )
     )
-    strategy = ThreeGreenPyramidSellStrategy()
+    strategy = ThreeGreenPyramidSellStrategy(instrument=instrument)
     logger = TradingDebugLogger()
     executor = PaperExecutor(logger=logger, instrument=instrument, initial_account=initial_account)
     trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger)

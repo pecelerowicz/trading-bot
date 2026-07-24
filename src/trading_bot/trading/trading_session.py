@@ -1,3 +1,4 @@
+from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
@@ -22,10 +23,14 @@ class TradingSession:
         self.logger.candle(kline)
         self.klines.append(kline)
 
-        await self.executor.process_kline(kline)
+        await self.executor.update_executor(kline)
         await self._sync_current_campaign_orders()
+        account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
-        signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
+        signal = self.strategy.on_kline(kline=kline,
+                                        klines=self.klines,
+                                        current_campaign=self.current_campaign,
+                                        account_snapshot = account_snapshot)
 
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
@@ -85,7 +90,6 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        # TODO: Close the campaign only after closing orders are filled and exposure is neutral.
         self.current_campaign.is_active = False
 
         self.logger.campaign("Closed campaign")

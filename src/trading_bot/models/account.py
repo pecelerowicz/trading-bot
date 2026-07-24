@@ -27,3 +27,6 @@ class AccountSnapshot:
             free=Decimal("0"),
             locked=Decimal("0"),
         )
+
+    def has_free_balance(self, asset: str, amount: Decimal) -> bool:
+        return self.get_balance(asset).free >= amount
