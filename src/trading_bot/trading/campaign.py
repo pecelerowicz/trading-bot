@@ -1,12 +1,20 @@
 from dataclasses import dataclass, field
 from decimal import Decimal
+from enum import Enum
 
 from trading_bot.models.order import Order
 
 
+class CampaignState(Enum):
+    OPEN = "OPEN"
+    CLOSING = "CLOSING"
+    RECOVERY = "RECOVERY"
+    CLOSED = "CLOSED"
+
+
 @dataclass(frozen=True)
 class CampaignExecutionSummary:
-    is_active: bool
+    state: CampaignState
 
     bought_base: Decimal = Decimal("0.0")
     sold_base: Decimal = Decimal("0.0")
@@ -24,11 +32,23 @@ class CampaignExecutionSummary:
 @dataclass
 class Campaign:
     orders: list[Order] = field(default_factory=list)
-    is_active: bool = True
+    state: CampaignState = CampaignState.OPEN
+
+    @property
+    def is_open(self) -> bool:
+        return self.state == CampaignState.OPEN
+
+    @property
+    def is_closing(self) -> bool:
+        return self.state == CampaignState.CLOSING
+
+    @property
+    def is_recovery(self) -> bool:
+        return self.state == CampaignState.RECOVERY
 
     @property
     def is_closed(self) -> bool:
-        return not self.is_active
+        return self.state == CampaignState.CLOSED
 
     @property
     def order_ids(self) -> list[str]:
@@ -73,7 +93,7 @@ class Campaign:
         average_sell_price = received_quote / sold_base if sold_base > 0 else None
 
         return CampaignExecutionSummary(
-            is_active=self.is_active,
+            state=self.state,
             bought_base=bought_base,
             sold_base=sold_base,
             spent_quote=spent_quote,

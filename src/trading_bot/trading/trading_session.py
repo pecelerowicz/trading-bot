@@ -2,7 +2,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.campaign import Campaign, CampaignState
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 
@@ -69,7 +69,7 @@ class TradingSession:
         self.logger.campaign("Opening campaign")
 
         orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-        campaign = Campaign(orders=orders, is_active=True)
+        campaign = Campaign(orders=orders)
 
         self.current_campaign = campaign
         self.campaigns.append(campaign)
@@ -90,7 +90,7 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        self.current_campaign.is_active = False
+        self.current_campaign.state = CampaignState.CLOSED
 
         self.logger.campaign("Closed campaign")
         self.logger.campaign_summary(self.current_campaign)
