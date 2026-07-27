@@ -68,11 +68,12 @@ class TradingSession:
 
         self.logger.campaign("Opening campaign")
 
-        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-        campaign = Campaign(orders=orders)
+        campaign = Campaign()
 
         self.current_campaign = campaign
         self.campaigns.append(campaign)
+
+        campaign.orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
 
         self.logger.campaign("Opened campaign")
 
