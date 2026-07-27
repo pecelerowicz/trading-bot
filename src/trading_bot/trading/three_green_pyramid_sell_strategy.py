@@ -23,6 +23,9 @@ class ThreeGreenPyramidSellStrategy:
 
         # === CLOSING LOGIC ===
         if current_campaign is not None:
+            if current_campaign.is_closing:
+                return NoAction()
+
             if len(klines) >= 2:
                 last_two = klines[-2:]
                 is_two_consecutive_red = all(

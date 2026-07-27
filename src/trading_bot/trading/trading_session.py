@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
@@ -25,6 +27,7 @@ class TradingSession:
 
         await self.executor.update_executor(kline)
         await self._sync_current_campaign_orders()
+        self._try_close_current_campaign()
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
@@ -84,12 +87,33 @@ class TradingSession:
 
         self.logger.campaign("Closing campaign")
 
+        self.current_campaign.state = CampaignState.CLOSING
+
         self.current_campaign.orders = await self._cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
         self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
 
         close_orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
+
+        self._try_close_current_campaign()
+
+    def _try_close_current_campaign(self) -> bool:
+        if self.current_campaign is None:
+            return False
+
+        if not self.current_campaign.is_closing:
+            return False
+
+        has_pending_orders = any(
+            order.status in {"NEW", "PARTIALLY_FILLED"}
+            for order in self.current_campaign.orders
+        )
+
+        summary = self.current_campaign.execution_summary()
+
+        if has_pending_orders or summary.net_base_delta != Decimal("0.0"):
+            return False
 
         self.current_campaign.state = CampaignState.CLOSED
 
@@ -98,6 +122,7 @@ class TradingSession:
         self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
+        return True
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         updated_orders: list[Order] = []
