@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
@@ -27,8 +25,9 @@ class TradingSession:
         self.klines.append(kline)
 
         await self.executor.update_executor(kline)
+
         await self._sync_current_campaign_orders()
-        self._try_close_current_campaign()
+        self.close_current_campaign_if_ready()
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
@@ -97,9 +96,9 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        self._try_close_current_campaign()
+        self.close_current_campaign_if_ready()
 
-    def _try_close_current_campaign(self) -> bool:
+    def close_current_campaign_if_ready(self) -> bool:
         if self.current_campaign is None:
             return False
 
@@ -111,9 +110,7 @@ class TradingSession:
             for order in self.current_campaign.orders
         )
 
-        summary = self.current_campaign.execution_summary()
-
-        if has_pending_orders or summary.net_base_delta != Decimal("0.0"):
+        if has_pending_orders:
             return False
 
         self.current_campaign.state = CampaignState.CLOSED
