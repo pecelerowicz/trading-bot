@@ -6,7 +6,7 @@ from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
 from trading_bot.trading.campaign import Campaign, CampaignState
 from trading_bot.trading.debug_logger import TradingDebugLogger
-from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign, StrategySignal
+from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 from trading_bot.trading.strategy import Strategy
 
 
@@ -31,7 +31,10 @@ class TradingSession:
         self._try_close_current_campaign()
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
-        signal = self._get_strategy_signal(kline=kline, account_snapshot=account_snapshot)
+        signal = self.strategy.on_kline(kline=kline,
+                                       klines=self.klines,
+                                       current_campaign=self.current_campaign,
+                                       account_snapshot=account_snapshot)
 
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
@@ -49,29 +52,6 @@ class TradingSession:
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
         return False
-
-    def _get_strategy_signal(self, kline: KlineEvent, account_snapshot: AccountSnapshot) -> StrategySignal:
-        if self.current_campaign is None:
-            return self.strategy.on_no_campaign(kline=kline,
-                                                klines=self.klines,
-                                                account_snapshot=account_snapshot)
-
-        if self.current_campaign.is_open:
-            return self.strategy.on_open_campaign(kline=kline,
-                                                  klines=self.klines,
-                                                  current_campaign=self.current_campaign,
-                                                  account_snapshot=account_snapshot)
-
-        if self.current_campaign.is_closing:
-            return self.strategy.on_closing_campaign(kline=kline,
-                                                     klines=self.klines,
-                                                     current_campaign=self.current_campaign,
-                                                     account_snapshot=account_snapshot)
-
-        if self.current_campaign.is_recovery:
-            raise RuntimeError("Recovery campaign cannot be handled by trading strategy")
-
-        raise RuntimeError("Closed campaign cannot be current")
 
     async def _sync_current_campaign_orders(self) -> None:
         if self.current_campaign is None:

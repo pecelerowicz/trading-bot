@@ -4,7 +4,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
-from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction
+from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
 from trading_bot.trading.campaign import Campaign
 
 
@@ -13,7 +13,33 @@ class ThreeGreenPyramidSellStrategy:
     def __init__(self, instrument: Instrument) -> None:
         self.instrument = instrument
 
-    def on_no_campaign(
+    def on_kline(
+        self,
+        kline: KlineEvent,
+        klines: list[KlineEvent],
+        current_campaign: Campaign | None,
+        account_snapshot: AccountSnapshot
+    ) -> StrategySignal:
+        if current_campaign is None:
+            return self._on_no_campaign(kline=kline,
+                                        klines=klines,
+                                        account_snapshot=account_snapshot)
+
+        if current_campaign.is_open:
+            return self._on_open_campaign(kline=kline,
+                                          klines=klines,
+                                          current_campaign=current_campaign,
+                                          account_snapshot=account_snapshot)
+
+        if current_campaign.is_closing:
+            return self._on_closing_campaign(kline=kline,
+                                             klines=klines,
+                                             current_campaign=current_campaign,
+                                             account_snapshot=account_snapshot)
+
+        raise RuntimeError(f"Campaign in unexpected state: {current_campaign.state.value}")
+
+    def _on_no_campaign(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
@@ -57,7 +83,7 @@ class ThreeGreenPyramidSellStrategy:
 
         return OpenCampaign(order_requests=order_requests)
 
-    def on_open_campaign(
+    def _on_open_campaign(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
@@ -106,7 +132,7 @@ class ThreeGreenPyramidSellStrategy:
 
         return NoAction()
 
-    def on_closing_campaign(
+    def _on_closing_campaign(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
