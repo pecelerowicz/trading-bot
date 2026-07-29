@@ -24,6 +24,7 @@ class TradingSession:
         self.logger.candle(kline)
         self.klines.append(kline)
 
+        # artifact: needed just for paper executor
         await self.executor.update_executor(kline)
 
         await self._sync_current_campaign_orders()
