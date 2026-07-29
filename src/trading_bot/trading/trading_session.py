@@ -1,13 +1,15 @@
+from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
+from trading_bot.trading.strategy import Strategy
 
 
 class TradingSession:
-    def __init__(self, strategy, executor: Executor, logger: TradingDebugLogger) -> None:
+    def __init__(self, strategy: Strategy, executor: Executor, logger: TradingDebugLogger) -> None:
         self.strategy = strategy
         self.executor = executor
         self.logger = logger
@@ -15,34 +17,56 @@ class TradingSession:
         self.campaigns: list[Campaign] = []
         self.current_campaign: Campaign | None = None
 
-    async def handle_kline(self, kline: KlineEvent) -> bool:
+    async def handle_kline(self, kline: KlineEvent) -> None:
+        try:
+            await self._handle_kline(kline)
+        except Exception:
+            self._require_recovery()
+            raise
+
+    async def _handle_kline(self, kline: KlineEvent) -> None:
         if not kline.is_closed:
-            return False
+            return
 
         self.logger.candle(kline)
         self.klines.append(kline)
 
-        await self.executor.process_kline(kline)
-        await self._sync_current_campaign_orders()
+        # artifact: needed just for paper executor
+        await self.executor.update_executor(kline)
 
-        signal = self.strategy.on_kline(kline=kline, klines=self.klines, current_campaign=self.current_campaign)
+        await self._sync_current_campaign_orders()
+        self.close_current_campaign_if_ready()
+        account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
+
+        signal = self.strategy.on_kline(kline=kline,
+                                       klines=self.klines,
+                                       current_campaign=self.current_campaign,
+                                       account_snapshot=account_snapshot)
 
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
             await self._open_campaign(signal, kline)
-            return False
+            return
 
         if isinstance(signal, CloseCampaign):
             self.logger.signal("CloseCampaign")
             await self._close_campaign(signal, kline)
-            return False
+            return
 
         if isinstance(signal, NoAction):
             self.logger.signal("NoAction")
-            return False
+            return
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
-        return False
+
+    def _require_recovery(self) -> None:
+        if self.current_campaign is None:
+            return
+
+        if self.current_campaign.is_closed:
+            return
+
+        self.current_campaign.health = CampaignHealth.RECOVERY_REQUIRED
 
     async def _sync_current_campaign_orders(self) -> None:
         if self.current_campaign is None:
@@ -63,11 +87,13 @@ class TradingSession:
 
         self.logger.campaign("Opening campaign")
 
-        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-        campaign = Campaign(orders=orders, is_active=True)
+        campaign = Campaign()
 
         self.current_campaign = campaign
         self.campaigns.append(campaign)
+
+        campaign.orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
+        campaign.state = CampaignState.OPEN
 
         self.logger.campaign("Opened campaign")
 
@@ -78,6 +104,8 @@ class TradingSession:
 
         self.logger.campaign("Closing campaign")
 
+        self.current_campaign.state = CampaignState.CLOSING
+
         self.current_campaign.orders = await self._cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
         self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
 
@@ -85,14 +113,31 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        # TODO: Close the campaign only after closing orders are filled and exposure is neutral.
-        self.current_campaign.is_active = False
+        self.close_current_campaign_if_ready()
+
+    def close_current_campaign_if_ready(self) -> bool:
+        if self.current_campaign is None:
+            return False
+
+        if not self.current_campaign.is_closing:
+            return False
+
+        has_pending_orders = any(
+            order.status in {"NEW", "PARTIALLY_FILLED"}
+            for order in self.current_campaign.orders
+        )
+
+        if has_pending_orders:
+            return False
+
+        self.current_campaign.state = CampaignState.CLOSED
 
         self.logger.campaign("Closed campaign")
         self.logger.campaign_summary(self.current_campaign)
         self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
+        return True
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         updated_orders: list[Order] = []

@@ -154,7 +154,7 @@ class TradingDebugLogger:
         rejected = len([order for order in campaign.orders if order.status == "REJECTED"])
         active = len([order for order in campaign.orders if order.status not in {"FILLED", "CANCELED", "REJECTED"}])
 
-        status = "ACTIVE" if campaign.is_active else "INACTIVE"
+        status = campaign.state.value
         summary = campaign.execution_summary()
 
         average_buy_price = (f"{summary.average_buy_price:.4f}" if summary.average_buy_price is not None else "-")
@@ -183,20 +183,38 @@ class TradingDebugLogger:
         )
 
     def campaigns_history(self, campaigns: list[Campaign]) -> None:
-        active_count = len([
+        open_count = len([
             campaign
             for campaign in campaigns
-            if campaign.is_active
+            if campaign.is_open
         ])
 
-        inactive_count = len(campaigns) - active_count
+        closing_count = len([
+            campaign
+            for campaign in campaigns
+            if campaign.is_closing
+        ])
+
+        recovery_count = len([
+            campaign
+            for campaign in campaigns
+            if campaign.is_recovery
+        ])
+
+        closed_count = len([
+            campaign
+            for campaign in campaigns
+            if campaign.is_closed
+        ])
 
         self._print("CAMPAIGNS HISTORY", "", indent=1)
 
         self._detail(
             f"total={len(campaigns)} | "
-            f"active={active_count} | "
-            f"inactive={inactive_count}",
+            f"open={open_count} | "
+            f"closing={closing_count} | "
+            f"recovery={recovery_count} | "
+            f"closed={closed_count}",
             indent=2,
         )
 
@@ -206,7 +224,7 @@ class TradingDebugLogger:
                 campaigns[-5:],
                 start=max(1, len(campaigns) - 4),
         ):
-            status = "ACTIVE" if campaign.is_active else "INACTIVE"
+            status = campaign.state.value
 
             filled = len([
                 order

@@ -13,7 +13,4 @@ class TradingApp:
 
     async def run(self):
         async for kline in self.market_data_source.stream_klines():
-            should_stop = await self.trading_session.handle_kline(kline)
-
-            if should_stop:
-                break
+            await self.trading_session.handle_kline(kline)
