@@ -2,7 +2,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import Campaign, CampaignState
+from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 from trading_bot.trading.strategy import Strategy
@@ -17,9 +17,16 @@ class TradingSession:
         self.campaigns: list[Campaign] = []
         self.current_campaign: Campaign | None = None
 
-    async def handle_kline(self, kline: KlineEvent) -> bool:
+    async def handle_kline(self, kline: KlineEvent) -> None:
+        try:
+            await self._handle_kline(kline)
+        except Exception:
+            self._require_recovery()
+            raise
+
+    async def _handle_kline(self, kline: KlineEvent) -> None:
         if not kline.is_closed:
-            return False
+            return
 
         self.logger.candle(kline)
         self.klines.append(kline)
@@ -39,19 +46,27 @@ class TradingSession:
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
             await self._open_campaign(signal, kline)
-            return False
+            return
 
         if isinstance(signal, CloseCampaign):
             self.logger.signal("CloseCampaign")
             await self._close_campaign(signal, kline)
-            return False
+            return
 
         if isinstance(signal, NoAction):
             self.logger.signal("NoAction")
-            return False
+            return
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
-        return False
+
+    def _require_recovery(self) -> None:
+        if self.current_campaign is None:
+            return
+
+        if self.current_campaign.is_closed:
+            return
+
+        self.current_campaign.health = CampaignHealth.RECOVERY_REQUIRED
 
     async def _sync_current_campaign_orders(self) -> None:
         if self.current_campaign is None:
@@ -78,6 +93,7 @@ class TradingSession:
         self.campaigns.append(campaign)
 
         campaign.orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
+        campaign.state = CampaignState.OPEN
 
         self.logger.campaign("Opened campaign")
 
