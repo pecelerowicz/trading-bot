@@ -6,10 +6,15 @@ from trading_bot.models.order import Order
 
 
 class CampaignState(Enum):
+    OPENING = "OPENING"
     OPEN = "OPEN"
     CLOSING = "CLOSING"
-    RECOVERY = "RECOVERY"
     CLOSED = "CLOSED"
+
+
+class CampaignHealth(Enum):
+    NORMAL = "NORMAL"
+    RECOVERY_REQUIRED = "RECOVERY_REQUIRED"
 
 
 @dataclass(frozen=True)
@@ -32,7 +37,8 @@ class CampaignExecutionSummary:
 @dataclass
 class Campaign:
     orders: list[Order] = field(default_factory=list)
-    state: CampaignState = CampaignState.OPEN
+    state: CampaignState = CampaignState.OPENING
+    health: CampaignHealth = CampaignHealth.NORMAL
 
     @property
     def is_open(self) -> bool:
@@ -44,7 +50,7 @@ class Campaign:
 
     @property
     def is_recovery(self) -> bool:
-        return self.state == CampaignState.RECOVERY
+        return self.health == CampaignHealth.RECOVERY_REQUIRED
 
     @property
     def is_closed(self) -> bool:
