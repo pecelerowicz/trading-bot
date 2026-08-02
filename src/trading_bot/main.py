@@ -16,6 +16,8 @@ from trading_bot.adapters.executor.paper.paper_executor import PaperExecutor
 async def main():
     app_config = load_app_config()
 
+    #TODO instead having both Instrument and tuple (AssetBalance, AssetBalance), maybe it is possible to have one class only?
+    #TODO my problem is that both Instrument and AssetBalance pull some of the same fields from configuration
     instrument = Instrument(symbol=app_config.symbol, base_asset=app_config.base_asset, quote_asset=app_config.quote_asset)
     initial_account = AccountSnapshot(
         balances=(

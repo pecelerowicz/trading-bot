@@ -4,11 +4,20 @@ from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
 from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState
 from trading_bot.trading.debug_logger import TradingDebugLogger
+from trading_bot.trading.errors import (
+    InvalidOrderExecutionError,
+    LimitOrderNotAcceptedError,
+    MarketOrderNotAcceptedError,
+    MarketOrderNotFullyFilledError,
+    OrderCancellationNotCompletedError,
+    StrategySignalConflictError, UnexpectedOrderStateError,
+)
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 from trading_bot.trading.strategy import Strategy
 
 
 class TradingSession:
+
     def __init__(self, strategy: Strategy, executor: Executor, logger: TradingDebugLogger) -> None:
         self.strategy = strategy
         self.executor = executor
@@ -20,8 +29,8 @@ class TradingSession:
     async def handle_kline(self, kline: KlineEvent) -> None:
         try:
             await self._handle_kline(kline)
-        except Exception:
-            self._require_recovery()
+        except Exception as error:
+            self._require_recovery(error)
             raise
 
     async def _handle_kline(self, kline: KlineEvent) -> None:
@@ -35,13 +44,13 @@ class TradingSession:
         await self.executor.update_executor(kline)
 
         await self._sync_current_campaign_orders()
-        self.close_current_campaign_if_ready()
+        self._close_current_campaign_if_ready()
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
-                                       klines=self.klines,
-                                       current_campaign=self.current_campaign,
-                                       account_snapshot=account_snapshot)
+                                        klines=self.klines,
+                                        current_campaign=self.current_campaign,
+                                        account_snapshot=account_snapshot)
 
         if isinstance(signal, OpenCampaign):
             self.logger.signal("OpenCampaign")
@@ -59,15 +68,6 @@ class TradingSession:
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
 
-    def _require_recovery(self) -> None:
-        if self.current_campaign is None:
-            return
-
-        if self.current_campaign.is_closed:
-            return
-
-        self.current_campaign.health = CampaignHealth.RECOVERY_REQUIRED
-
     async def _sync_current_campaign_orders(self) -> None:
         if self.current_campaign is None:
             return
@@ -79,6 +79,29 @@ class TradingSession:
             updated_orders.append(updated_order)
 
         self.current_campaign.orders = updated_orders
+
+    def _close_current_campaign_if_ready(self) -> None:
+        if self.current_campaign is None:
+            return
+
+        if not self.current_campaign.is_closing:
+            return
+
+        has_pending_orders = any(
+            order.status in {"NEW", "PARTIALLY_FILLED"}
+            for order in self.current_campaign.orders
+        )
+
+        if has_pending_orders:
+            return
+
+        self.current_campaign.state = CampaignState.CLOSED
+
+        self.logger.campaign("Closed campaign")
+        self.logger.campaign_summary(self.current_campaign)
+        self.logger.campaigns_history(self.campaigns)
+
+        self.current_campaign = None
 
     async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is not None:
@@ -97,6 +120,55 @@ class TradingSession:
 
         self.logger.campaign("Opened campaign")
 
+    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
+        orders: list[Order] = []
+
+        for order_request in order_requests:
+            order = await self.executor.place_order(order_request=order_request)
+            self._validate_placed_order(order)
+            orders.append(order)
+
+        self.logger.placed_orders(orders)
+
+        for order in orders:
+            if order.status == "FILLED" and order.request.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
+
+        return orders
+
+    def _validate_placed_order(self, order: Order) -> None:
+        if order.request.order_type == "MARKET":
+            if order.status == "REJECTED":
+                raise MarketOrderNotAcceptedError(
+                    f"Market order #{order.order_id} was not accepted: "
+                    f"status={order.status}"
+                )
+
+            if order.status != "FILLED":
+                raise MarketOrderNotFullyFilledError(
+                    f"Market order #{order.order_id} was not fully filled: "
+                    f"status={order.status}"
+                )
+
+            return
+
+        if order.request.order_type == "LIMIT":
+            if order.status == "REJECTED":
+                raise LimitOrderNotAcceptedError(
+                    f"Limit order #{order.order_id} was not accepted: "
+                    f"status={order.status}"
+                )
+
+            if order.status not in {"NEW", "PARTIALLY_FILLED", "FILLED"}:
+                raise UnexpectedOrderStateError(
+                    f"Limit order #{order.order_id} returned an unexpected state "
+                    f"after placement: status={order.status}"
+                )
+
+            return
+
+        raise ValueError(f"Unsupported order type: {order.request.order_type}")
+
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is None:
             self.logger.campaign("Close signal ignored: no current campaign")
@@ -113,31 +185,7 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        self.close_current_campaign_if_ready()
-
-    def close_current_campaign_if_ready(self) -> bool:
-        if self.current_campaign is None:
-            return False
-
-        if not self.current_campaign.is_closing:
-            return False
-
-        has_pending_orders = any(
-            order.status in {"NEW", "PARTIALLY_FILLED"}
-            for order in self.current_campaign.orders
-        )
-
-        if has_pending_orders:
-            return False
-
-        self.current_campaign.state = CampaignState.CLOSED
-
-        self.logger.campaign("Closed campaign")
-        self.logger.campaign_summary(self.current_campaign)
-        self.logger.campaigns_history(self.campaigns)
-
-        self.current_campaign = None
-        return True
+        self._close_current_campaign_if_ready()
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         updated_orders: list[Order] = []
@@ -150,6 +198,20 @@ class TradingSession:
 
             previous_status = order.status
             canceled_order = await self.executor.cancel_order(order)
+
+            if canceled_order.filled_quantity != order.filled_quantity:
+                raise StrategySignalConflictError(
+                    f"Order #{order.order_id} execution changed while applying the strategy signal: "
+                    f"status {order.status} -> {canceled_order.status}, "
+                    f"filled quantity {order.filled_quantity} -> {canceled_order.filled_quantity}"
+                )
+
+            if canceled_order.status != "CANCELED":
+                raise OrderCancellationNotCompletedError(
+                    f"Order #{order.order_id} was not canceled: "
+                    f"status={canceled_order.status}"
+                )
+
             updated_orders.append(canceled_order)
 
             if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
@@ -159,17 +221,15 @@ class TradingSession:
 
         return updated_orders
 
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
-        orders: list[Order] = []
+    def _require_recovery(self, error: Exception) -> None:
+        if self.current_campaign is None:
+            return
 
-        for order_request in order_requests:
-            order = await self.executor.place_order(order_request=order_request)
-            orders.append(order)
+        if self.current_campaign.is_closed:
+            return
 
-        self.logger.placed_orders(orders)
-
-        for order in orders:
-            if order.status == "FILLED" and order.request.order_type == "MARKET":
-                self.logger.fill_market_order(order, kline)
-
-        return orders
+        self.current_campaign.health = CampaignHealth.RECOVERY_REQUIRED
+        self.logger.campaign(
+            f"Recovery required in {self.current_campaign.state.value}: "
+            f"{type(error).__name__}: {error}"
+        )
