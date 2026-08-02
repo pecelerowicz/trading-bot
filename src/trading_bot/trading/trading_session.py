@@ -5,7 +5,6 @@ from trading_bot.ports.executor import Executor
 from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.errors import (
-    InvalidOrderExecutionError,
     LimitOrderNotAcceptedError,
     MarketOrderNotAcceptedError,
     MarketOrderNotFullyFilledError,

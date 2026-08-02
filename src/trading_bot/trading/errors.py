@@ -54,9 +54,5 @@ class OrderCancellationNotCompletedError(UnexpectedOrderStateError):
     pass
 
 
-class InvalidOrderExecutionError(UnexpectedOrderStateError):
-    pass
-
-
 class StrategySignalConflictError(RecoveryRequiredError):
     pass
