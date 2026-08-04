@@ -4,6 +4,7 @@ from decimal import Decimal
 from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
 from trading_bot.adapters.market_data.binance.data_replay.stream import LocalMarketDataSource
 from trading_bot.trading.debug_logger import TradingDebugLogger
+from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyramidSellStrategy
 from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
@@ -36,7 +37,8 @@ async def main():
     strategy = ThreeGreenPyramidSellStrategy(instrument=instrument)
     logger = TradingDebugLogger()
     executor = PaperExecutor(logger=logger, instrument=instrument, initial_account=initial_account)
-    trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger)
+    reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
+    trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
 
     if app_config.is_mock:
         market_data_source = LocalMarketDataSource(
