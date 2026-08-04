@@ -22,15 +22,14 @@ class PortfolioReconciliationReporter:
         self.file_path = output_path / f"portfolio-reconciliation-{run_id}.log"
 
     async def on_campaign_opened(self, campaign_number: int) -> None:
-        account_before = await self.executor.get_account_snapshot()
-
         self.current_campaign_number = campaign_number
-        self.account_before = account_before
+        self.account_before = await self.executor.get_account_snapshot()
 
-    async def on_campaign_closed(self, campaign_number: int, campaign: Campaign) -> None:
-        if self.current_campaign_number != campaign_number or self.account_before is None:
-            raise RuntimeError(f"Missing opening snapshot for campaign #{campaign_number}")
+    async def on_campaign_closed(self, campaign: Campaign) -> None:
+        if self.current_campaign_number is None or self.account_before is None:
+            raise RuntimeError("Missing opening snapshot for current campaign")
 
+        campaign_number = self.current_campaign_number
         account_after = await self.executor.get_account_snapshot()
         summary = campaign.execution_summary()
 

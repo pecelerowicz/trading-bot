@@ -97,7 +97,6 @@ class TradingSession:
             return
 
         campaign = self.current_campaign
-        campaign_number = len(self.campaigns)
         campaign.state = CampaignState.CLOSED
 
         self.logger.campaign("Closed campaign")
@@ -107,7 +106,6 @@ class TradingSession:
         self.current_campaign = None
 
         await self.reconciliation_reporter.on_campaign_closed(
-            campaign_number=campaign_number,
             campaign=campaign,
         )
 
