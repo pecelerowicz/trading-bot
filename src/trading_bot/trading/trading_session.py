@@ -11,16 +11,18 @@ from trading_bot.trading.errors import (
     OrderCancellationNotCompletedError,
     StrategySignalConflictError, UnexpectedOrderStateError,
 )
+from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 from trading_bot.trading.strategy import Strategy
 
 
 class TradingSession:
 
-    def __init__(self, strategy: Strategy, executor: Executor, logger: TradingDebugLogger) -> None:
+    def __init__(self, strategy: Strategy, executor: Executor, logger: TradingDebugLogger, reconciliation_reporter: PortfolioReconciliationReporter) -> None:
         self.strategy = strategy
         self.executor = executor
         self.logger = logger
+        self.reconciliation_reporter = reconciliation_reporter
         self.klines: list[KlineEvent] = []
         self.campaigns: list[Campaign] = []
         self.current_campaign: Campaign | None = None
@@ -43,7 +45,7 @@ class TradingSession:
         await self.executor.update_executor(kline)
 
         await self._sync_current_campaign_orders()
-        self._close_current_campaign_if_ready()
+        await self._close_current_campaign_if_ready()
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
@@ -79,7 +81,7 @@ class TradingSession:
 
         self.current_campaign.orders = updated_orders
 
-    def _close_current_campaign_if_ready(self) -> None:
+    async def _close_current_campaign_if_ready(self) -> None:
         if self.current_campaign is None:
             return
 
@@ -94,13 +96,20 @@ class TradingSession:
         if has_pending_orders:
             return
 
-        self.current_campaign.state = CampaignState.CLOSED
+        campaign = self.current_campaign
+        campaign_number = len(self.campaigns)
+        campaign.state = CampaignState.CLOSED
 
         self.logger.campaign("Closed campaign")
-        self.logger.campaign_summary(self.current_campaign)
+        self.logger.campaign_summary(campaign)
         self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
+
+        await self.reconciliation_reporter.on_campaign_closed(
+            campaign_number=campaign_number,
+            campaign=campaign,
+        )
 
     async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is not None:
@@ -113,6 +122,10 @@ class TradingSession:
 
         self.current_campaign = campaign
         self.campaigns.append(campaign)
+
+        await self.reconciliation_reporter.on_campaign_opened(
+            campaign_number=len(self.campaigns),
+        )
 
         campaign.orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
         campaign.state = CampaignState.OPEN
@@ -184,7 +197,7 @@ class TradingSession:
         self.current_campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        self._close_current_campaign_if_ready()
+        await self._close_current_campaign_if_ready()
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         updated_orders: list[Order] = []
