@@ -65,7 +65,7 @@ class ThreeGreenPyramidSellStrategy:
                 OrderRequest(
                     side="SELL",
                     order_type="LIMIT",
-                    quantity=Decimal("1.0"),
+                    quantity=Decimal("0.1"),
                     price=round(price, 2),
                 )
             )
