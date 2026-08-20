@@ -1,6 +1,9 @@
 import asyncio
 from decimal import Decimal
 
+from binance import Client
+
+from trading_bot.adapters.executor.binance.binance_executor import BinanceExecutor
 from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
 from trading_bot.adapters.market_data.binance.data_replay.stream import LocalMarketDataSource
 from trading_bot.trading.debug_logger import TradingDebugLogger
@@ -36,11 +39,9 @@ async def main():
     )
     strategy = ThreeGreenPyramidSellStrategy(instrument=instrument)
     logger = TradingDebugLogger()
-    executor = PaperExecutor(logger=logger, instrument=instrument, initial_account=initial_account)
-    reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
-    trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
 
     if app_config.is_mock:
+        executor = PaperExecutor(logger=logger, instrument=instrument, initial_account=initial_account)
         market_data_source = LocalMarketDataSource(
             symbol=app_config.symbol,
             interval=app_config.interval,
@@ -49,6 +50,12 @@ async def main():
             delay_seconds=app_config.mock_delay_seconds
         )
     else:
+        client = Client(
+            api_key=app_config.api_key,
+            api_secret=app_config.api_secret,
+            testnet=app_config.is_testnet,
+        )
+        executor = BinanceExecutor(client=client, instrument=instrument)
         market_data_source = BinanceMarketDataSource(
             api_key=app_config.api_key,
             api_secret=app_config.api_secret,
@@ -56,6 +63,9 @@ async def main():
             symbol=app_config.symbol,
             interval=app_config.interval
         )
+
+    reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
+    trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
 
     app = TradingApp(
         market_data_source=market_data_source,

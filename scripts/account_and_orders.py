@@ -1,6 +1,6 @@
 from binance import Client
 
-from trading_bot.adapters.execution.binance.api import BinanceOrderApi
+from scripts.api import BinanceOrderApi
 from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
 from trading_bot.config import load_app_config
 
@@ -14,12 +14,12 @@ def main():
 
     # get_balance
     print("--- get_balance ---")
-    print(executor.get_balance("SOL"))
+    print(executor.get_balance("BTC"))
     print(executor.get_balance("USDT"))
 
     # get_current_price
     print("--- get_current_price ---")
-    print(retriever.get_current_price("SOLUSDT"))
+    print(retriever.get_current_price("BTCUSDT"))
 
     # # buy_limit_quantity
     # print("--- buy_limit_quantity ---")
@@ -28,7 +28,8 @@ def main():
 
     # get_open_orders
     print("--- get_open_orders ---")
-    print(executor.get_open_orders("SOLUSDT"))
+    print(executor.get_open_orders("BTCUSDT"))
+
 
     # get_balance
     print("--- get_balance ---")
