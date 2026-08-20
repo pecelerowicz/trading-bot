@@ -9,11 +9,14 @@ __pycache__
 .mypy_cache
 .ruff_cache
 *.egg-info
+
 .env
 .env.*
 !.env.example
-*.log
-logs
+
+**/logs/
+**/*.log
+
 notebooks
 scripts
 *.zip
