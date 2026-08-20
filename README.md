@@ -1,7 +1,5 @@
 # trading-bot
 
-Data analysis and experimenting
-
 ## Setup
 
 ```bash
@@ -9,59 +7,51 @@ conda env create -f environment.yml
 conda activate trading-bot
 ```
 
-## Container (Podman)
+## Podman
 
-Run these commands from the project root in PowerShell.
-
-### Build the image
+### Build image
 
 ```powershell
 podman build -t trading-bot:local .
 ```
 
-### Run the container in the background
+### Run container
 
 ```powershell
-podman run -d --name trading-bot --env-file .env trading-bot:local
+podman run -d --name trading-bot -v "${PWD}\.env:/app/.env:ro" trading-bot:local
 ```
 
-Do not use `--rm` if you want to inspect the container or retrieve its files after the program finishes.
-
-### Inspect containers
-
-Show running containers:
+### List running containers
 
 ```powershell
 podman ps
 ```
 
-Show all containers, including finished ones:
+### List all containers
 
 ```powershell
 podman ps -a
 ```
 
-### View application output
+### Show logs
 
 ```powershell
 podman logs trading-bot
 ```
 
-Follow output live:
+### Follow logs
 
 ```powershell
 podman logs -f trading-bot
 ```
 
-`Ctrl+C` stops following the logs; it does not stop the container.
-
-### Enter a running container
+### Enter running container
 
 ```powershell
 podman exec -it trading-bot /bin/sh
 ```
 
-For example:
+### Reconciliation logs inside container
 
 ```sh
 cd /app/logs
@@ -69,42 +59,38 @@ ls -lah
 cat portfolio-reconciliation-*.log
 ```
 
-### Retrieve log files after the program finishes
-
-When the program finishes, the container changes to `Exited`, but its filesystem and generated files remain available until the container is removed.
-
-Copy the reconciliation logs to the current directory:
-
-```powershell
-podman cp trading-bot:/app/logs .\logs-from-container
-```
-
-Starting an exited container again with:
-
-```powershell
-podman start trading-bot
-```
-
-starts the bot again. It does not start an empty shell.
-
-### Stop and remove the container
-
-Stop:
+### Stop container
 
 ```powershell
 podman stop trading-bot
 ```
 
-Remove:
+### Start existing container
+
+```powershell
+podman start trading-bot
+```
+
+### Copy reconciliation logs from container
+
+```powershell
+podman cp trading-bot:/app/logs .\logs-from-container
+```
+
+### Remove container
 
 ```powershell
 podman rm trading-bot
 ```
 
-Removing the container also removes files stored only inside that container.
-
-To stop and remove all containers:
+### Remove all containers
 
 ```powershell
 podman rm --all --force
+```
+
+### List images
+
+```powershell
+podman images
 ```
