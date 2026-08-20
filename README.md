@@ -94,3 +94,9 @@ podman rm --all --force
 ```powershell
 podman images
 ```
+
+### Remove all images
+
+```powershell
+podman rmi --all --force
+```
