@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from binance import Client
 
 from scripts.api import BinanceOrderApi
@@ -16,6 +18,15 @@ def main():
     print("--- get_balance ---")
     print(executor.get_balance("BTC"))
     print(executor.get_balance("USDT"))
+    print(executor.get_balance("ETH"))
+    print(executor.get_balance("SOL"))
+    print(executor.get_balance("ADA"))
+    print(executor.get_balance("MATIC"))
+    print(executor.get_balance("DOT"))
+    print(executor.get_balance("PEPE"))
+    print(executor.get_balance("ONDO"))
+    print(executor.get_balance("LINK"))
+    print(executor.get_balance("XRP"))
 
     # get_current_price
     print("--- get_current_price ---")
@@ -23,8 +34,14 @@ def main():
 
     # # buy_limit_quantity
     # print("--- buy_limit_quantity ---")
-    # print(executor.buy_limit_quantity("SOLUSDT", Decimal("1"), Decimal("90.7")))
-    # print(executor.sell_limit_quantity("SOLUSDT", Decimal("1"), Decimal("90.9")))
+    # print(executor.buy_market_quantity("BTCUSDT", Decimal("1")))
+    # executor.sell_market_quantity("SOLUSDT", Decimal("6"))
+    # executor.sell_market_quantity("PEPEUSDT", Decimal("18446"))
+    # executor.sell_market_quantity("ONDOUSDT", Decimal("1313"))
+    # executor.sell_market_quantity("LINKUSDT", Decimal("61"))
+    # executor.sell_market_quantity("XRPUSDT", Decimal("470"))
+
+
 
     # get_open_orders
     print("--- get_open_orders ---")
