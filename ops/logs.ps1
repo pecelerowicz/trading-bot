@@ -1,4 +1,4 @@
-. "$PSScriptRoot\config.ps1"
+. "$PSScriptRoot\_config.ps1"
 
 Write-Host "Container status:"
 ssh -i $SshKey $Server "podman ps -a --filter name=$Container"
