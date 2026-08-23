@@ -1,7 +1,7 @@
 import asyncio
 from decimal import Decimal
 
-from binance import Client
+from binance import AsyncClient
 
 from trading_bot.adapters.executor.binance.binance_executor import BinanceExecutor
 from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
@@ -40,39 +40,44 @@ async def main():
     strategy = ThreeGreenPyramidSellStrategy(instrument=instrument)
     logger = TradingDebugLogger()
 
-    if app_config.is_mock:
-        executor = PaperExecutor(logger=logger, instrument=instrument, initial_account=initial_account)
-        market_data_source = LocalMarketDataSource(
-            symbol=app_config.symbol,
-            interval=app_config.interval,
-            initial_date=app_config.mock_initial_date,
-            final_date=app_config.mock_final_date,
-            delay_seconds=app_config.mock_delay_seconds
-        )
-    else:
-        client = Client(
-            api_key=app_config.api_key,
-            api_secret=app_config.api_secret,
-            testnet=app_config.is_testnet,
-        )
-        executor = BinanceExecutor(client=client, instrument=instrument)
-        market_data_source = BinanceMarketDataSource(
-            api_key=app_config.api_key,
-            api_secret=app_config.api_secret,
-            testnet=app_config.is_testnet,
-            symbol=app_config.symbol,
-            interval=app_config.interval
+    client: AsyncClient | None = None
+
+    try:
+        if app_config.is_mock:
+            executor = PaperExecutor(logger=logger, instrument=instrument, initial_account=initial_account)
+            market_data_source = LocalMarketDataSource(
+                symbol=app_config.symbol,
+                interval=app_config.interval,
+                initial_date=app_config.mock_initial_date,
+                final_date=app_config.mock_final_date,
+                delay_seconds=app_config.mock_delay_seconds
+            )
+        else:
+            client = await AsyncClient.create(
+                api_key=app_config.api_key,
+                api_secret=app_config.api_secret,
+                testnet=app_config.is_testnet,
+            )
+            executor = BinanceExecutor(client=client, instrument=instrument)
+            market_data_source = BinanceMarketDataSource(
+                client=client,
+                symbol=app_config.symbol,
+                interval=app_config.interval,
+            )
+
+        reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
+        trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
+
+        app = TradingApp(
+            market_data_source=market_data_source,
+            trading_session=trading_session,
         )
 
-    reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
-    trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
+        await app.run()
 
-    app = TradingApp(
-        market_data_source=market_data_source,
-        trading_session=trading_session,
-    )
-
-    await app.run()
+    finally:
+        if client is not None:
+            await client.close_connection()
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
-import asyncio
 from decimal import Decimal
 from typing import Any
+
+from binance import AsyncClient
 
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
@@ -9,7 +10,7 @@ from trading_bot.models.order import Order, OrderRequest, OrderStatus
 
 
 class BinanceExecutor:
-    def __init__(self, client, instrument: Instrument) -> None:
+    def __init__(self, client: AsyncClient, instrument: Instrument) -> None:
         self._client = client
         self._instrument = instrument
 
@@ -32,16 +33,12 @@ class BinanceExecutor:
             order_parameters["timeInForce"] = "GTC"
             order_parameters["price"] = str(order_request.price)
 
-        raw_order = await asyncio.to_thread(
-            self._client.create_order,
-            **order_parameters,
-        )
+        raw_order = await self._client.create_order(**order_parameters)
 
         return self._map_order(raw_order=raw_order, order_request=order_request)
 
     async def sync_order_status(self, order: Order) -> Order:
-        raw_order = await asyncio.to_thread(
-            self._client.get_order,
+        raw_order = await self._client.get_order(
             symbol=self._instrument.symbol,
             orderId=int(order.order_id),
         )
@@ -49,8 +46,7 @@ class BinanceExecutor:
         return self._map_order(raw_order=raw_order, order_request=order.request)
 
     async def cancel_order(self, order: Order) -> Order:
-        raw_order = await asyncio.to_thread(
-            self._client.cancel_order,
+        raw_order = await self._client.cancel_order(
             symbol=self._instrument.symbol,
             orderId=int(order.order_id),
         )
@@ -58,7 +54,7 @@ class BinanceExecutor:
         return self._map_order(raw_order=raw_order, order_request=order.request)
 
     async def get_account_snapshot(self) -> AccountSnapshot:
-        raw_account = await asyncio.to_thread(self._client.get_account)
+        raw_account = await self._client.get_account()
 
         return AccountSnapshot(
             balances=(
