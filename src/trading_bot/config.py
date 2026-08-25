@@ -6,7 +6,8 @@ from dotenv import load_dotenv
 
 @dataclass(frozen=True)
 class AppConfig:
-    binance_env: str
+    market_data_source: str
+    executor: str
     symbol: str
     base_asset: str
     quote_asset: str
@@ -14,52 +15,48 @@ class AppConfig:
     paper_initial_base_balance: Decimal
     paper_initial_quote_balance: Decimal
 
-    api_key: str | None = None
-    api_secret: str | None = None
+    binance_api_key_testnet: str | None = None
+    binance_api_secret_testnet: str | None = None
+    binance_api_key_production: str | None = None
+    binance_api_secret_production: str | None = None
 
-    mock_initial_date: str | None = None
-    mock_final_date: str | None = None
-    mock_delay_seconds: float | None = None
-
-    @property
-    def is_mock(self) -> bool:
-        return self.binance_env == "mock"
-
-    @property
-    def is_testnet(self) -> bool:
-        return self.binance_env == "testnet"
-
-    @property
-    def is_production(self) -> bool:
-        return self.binance_env == "production"
+    replay_initial_date: str | None = None
+    replay_final_date: str | None = None
+    replay_delay_seconds: float | None = None
 
 
 def load_app_config() -> AppConfig:
     load_dotenv()
 
-    binance_env = os.getenv("BINANCE_ENV")
+    market_data_source = os.getenv("MARKET_DATA_SOURCE")
+    executor = os.getenv("EXECUTOR")
 
-    if binance_env == "production":
-        api_key = os.getenv("BINANCE_API_KEY_PRODUCTION")
-        api_secret = os.getenv("BINANCE_API_SECRET_PRODUCTION")
-    elif binance_env == "testnet":
-        api_key = os.getenv("BINANCE_API_KEY_TESTNET")
-        api_secret = os.getenv("BINANCE_API_SECRET_TESTNET")
-    else:
-        api_key = None
-        api_secret = None
+    if market_data_source not in {"replay_binance", "binance_testnet", "binance_production"}:
+        raise ValueError(f"Unsupported market data source: {market_data_source}")
+
+    if executor not in {"paper", "binance_testnet", "binance_production"}:
+        raise ValueError(f"Unsupported executor: {executor}")
+
+    if market_data_source == "replay_binance" and executor != "paper":
+        raise ValueError("Replay market data can only be used with paper executor")
+
+    if market_data_source == "binance_testnet" and executor == "binance_production":
+        raise ValueError("Binance production executor cannot use Binance testnet market data")
 
     return AppConfig(
-        binance_env=binance_env,
+        market_data_source=market_data_source,
+        executor=executor,
         symbol=os.getenv("SYMBOL"),
         base_asset=os.getenv("BASE_ASSET"),
         quote_asset=os.getenv("QUOTE_ASSET"),
         interval=os.getenv("INTERVAL"),
         paper_initial_base_balance=Decimal(os.getenv("PAPER_INITIAL_BASE_BALANCE", "0")),
         paper_initial_quote_balance=Decimal(os.getenv("PAPER_INITIAL_QUOTE_BALANCE", "0")),
-        api_key=api_key,
-        api_secret=api_secret,
-        mock_initial_date=os.getenv("MOCK_INITIAL_DATE"),
-        mock_final_date=os.getenv("MOCK_FINAL_DATE"),
-        mock_delay_seconds=float(os.getenv("MOCK_DELAY_SECONDS", "0")),
+        binance_api_key_testnet=os.getenv("BINANCE_API_KEY_TESTNET"),
+        binance_api_secret_testnet=os.getenv("BINANCE_API_SECRET_TESTNET"),
+        binance_api_key_production=os.getenv("BINANCE_API_KEY_PRODUCTION"),
+        binance_api_secret_production=os.getenv("BINANCE_API_SECRET_PRODUCTION"),
+        replay_initial_date=os.getenv("REPLAY_INITIAL_DATE"),
+        replay_final_date=os.getenv("REPLAY_FINAL_DATE"),
+        replay_delay_seconds=float(os.getenv("REPLAY_DELAY_SECONDS", "0")),
     )
