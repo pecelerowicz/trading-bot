@@ -35,7 +35,7 @@ class BinanceReplayMarketDataSource:
 
     def _data_file_path(self) -> Path:
         project_root = Path(__file__).resolve().parents[6]
-        return project_root / "data" / f"{self.symbol}_{self.interval}.json"
+        return project_root / "data" / "binance" / f"{self.symbol}_{self.interval}.json"
 
     def _load_raw_klines(self) -> list[list]:
         file_path = self._data_file_path()
