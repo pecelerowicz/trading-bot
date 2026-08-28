@@ -10,8 +10,8 @@ from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarket
 def main():
     load_dotenv()
 
-    api_key = os.getenv("BINANCE_API_KEY")
-    api_secret = os.getenv("BINANCE_API_SECRET")
+    api_key = os.getenv("BINANCE_API_KEY_PRODUCTION")
+    api_secret = os.getenv("BINANCE_API_SECRET_PRODUCTION")
     client = Client(api_key=api_key, api_secret=api_secret)
 
     symbol = "ADAUSDT"
