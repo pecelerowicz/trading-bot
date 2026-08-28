@@ -7,7 +7,7 @@ import pandas as pd
 from trading_bot.adapters.market_data.binance.mappers.rest_kline_mapper import map_rest_kline
 
 
-class LocalMarketDataSource:
+class BinanceReplayMarketDataSource:
     def __init__(
         self,
         symbol: str,

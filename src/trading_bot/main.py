@@ -5,7 +5,7 @@ from binance import AsyncClient
 
 from trading_bot.adapters.executor.binance.binance_executor import BinanceExecutor
 from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
-from trading_bot.adapters.market_data.binance.data_replay.stream import LocalMarketDataSource
+from trading_bot.adapters.market_data.binance.data_replay.stream import BinanceReplayMarketDataSource
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyramidSellStrategy
@@ -31,7 +31,7 @@ async def main():
 
     try:
         if app_config.market_data_source == "replay_binance":
-            market_data_source = LocalMarketDataSource(
+            market_data_source = BinanceReplayMarketDataSource(
                 symbol=app_config.symbol,
                 interval=app_config.interval,
                 initial_date=app_config.replay_initial_date,
