@@ -16,7 +16,7 @@ class OrderResult:
     avg_price: Decimal | None
     raw: dict[str, Any] | None = None
 
-class BinanceOrderApi:
+class BinanceAccountAndOrderApi:
     def __init__(self, client, include_raw: bool = False):
         self.client = client
         self.include_raw = include_raw

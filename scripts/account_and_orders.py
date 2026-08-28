@@ -1,9 +1,7 @@
-from decimal import Decimal
-
 from binance import Client
 
-from scripts.api import BinanceOrderApi
-from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
+from scripts.binance_account_and_order_api import BinanceAccountAndOrderApi
+from scripts.binance_market_data_api import BinanceMarketDataApi
 from trading_bot.config import load_app_config
 
 
@@ -16,7 +14,7 @@ def main():
         client = Client(api_key=app_config.binance_api_key_production, api_secret=app_config.binance_api_secret_production, testnet=False)
     else:
         raise ValueError("account_and_orders.py requires Binance executor")
-    executor = BinanceOrderApi(client=client)
+    executor = BinanceAccountAndOrderApi(client=client)
     retriever = BinanceMarketDataApi(client=client)
 
     # get_balance

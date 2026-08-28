@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 
-from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
+from scripts.binance_market_data_api import BinanceMarketDataApi
 
 
 def main():
