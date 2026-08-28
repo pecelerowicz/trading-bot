@@ -1,17 +1,20 @@
-from decimal import Decimal
-
 from binance import Client
 
-from scripts.api import BinanceOrderApi
-from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
+from scripts.binance_account_and_order_api import BinanceAccountAndOrderApi
+from scripts.binance_market_data_api import BinanceMarketDataApi
 from trading_bot.config import load_app_config
 
 
 def main():
 
     app_config = load_app_config()
-    client = Client(api_key=app_config.api_key, api_secret=app_config.api_secret, testnet=app_config.is_testnet) # tu już jest problem, bo dla mock wybierze production
-    executor = BinanceOrderApi(client=client)
+    if app_config.executor == "binance_testnet":
+        client = Client(api_key=app_config.binance_api_key_testnet, api_secret=app_config.binance_api_secret_testnet, testnet=True)
+    elif app_config.executor == "binance_production":
+        client = Client(api_key=app_config.binance_api_key_production, api_secret=app_config.binance_api_secret_production, testnet=False)
+    else:
+        raise ValueError("account_and_orders.py requires Binance executor")
+    executor = BinanceAccountAndOrderApi(client=client)
     retriever = BinanceMarketDataApi(client=client)
 
     # get_balance

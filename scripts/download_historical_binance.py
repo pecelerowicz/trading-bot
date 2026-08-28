@@ -4,17 +4,17 @@ import json
 import os
 from pathlib import Path
 
-from trading_bot.adapters.market_data.binance.data_live.api import BinanceMarketDataApi
+from scripts.binance_market_data_api import BinanceMarketDataApi
 
 
 def main():
     load_dotenv()
 
-    api_key = os.getenv("BINANCE_API_KEY")
-    api_secret = os.getenv("BINANCE_API_SECRET")
+    api_key = os.getenv("BINANCE_API_KEY_PRODUCTION")
+    api_secret = os.getenv("BINANCE_API_SECRET_PRODUCTION")
     client = Client(api_key=api_key, api_secret=api_secret)
 
-    symbol = "SOLUSDT"
+    symbol = "ADAUSDT"
     interval = "1h"
     initial_date = "2010-01-01"
     final_date = "2030-01-01"
@@ -29,8 +29,8 @@ def main():
     )
 
     project_root = Path(__file__).resolve().parents[1]
-    data_dir = project_root / "data"
-    data_dir.mkdir(exist_ok=True)
+    data_dir = project_root / "data" / "binance"
+    data_dir.mkdir(parents=True, exist_ok=True)
 
     file_name = f"{symbol}_{interval}.json"
     file_path = data_dir / file_name
