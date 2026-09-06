@@ -37,14 +37,6 @@ class BinanceExecutor:
 
         return self._map_order(raw_order=raw_order, order_request=order_request)
 
-    async def sync_order_status(self, order: Order) -> Order:
-        raw_order = await self._client.get_order(
-            symbol=self._instrument.symbol,
-            orderId=int(order.order_id),
-        )
-
-        return self._map_order(raw_order=raw_order, order_request=order.request)
-
     async def get_order(self, order_id: str) -> Order:
         raw_order = await self._client.get_order(
             symbol=self._instrument.symbol,
