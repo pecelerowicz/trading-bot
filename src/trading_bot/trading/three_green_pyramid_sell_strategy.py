@@ -5,7 +5,7 @@ from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
 from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
-from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.campaign import CampaignView
 
 
 class ThreeGreenPyramidSellStrategy:
@@ -17,7 +17,7 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: Campaign | None,
+        current_campaign: CampaignView | None,
         account_snapshot: AccountSnapshot
     ) -> StrategySignal:
         if current_campaign is None:
@@ -81,7 +81,7 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: Campaign,
+        current_campaign: CampaignView,
         account_snapshot: AccountSnapshot
     ) -> CloseCampaign | NoAction:
         if len(klines) >= 2:

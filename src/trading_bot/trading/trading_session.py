@@ -2,7 +2,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState
+from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState, CampaignView
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.errors import (
     LimitOrderNotAcceptedError,
@@ -44,12 +44,15 @@ class TradingSession:
         # artifact: needed just for paper executor
         await self.executor.update_executor(kline)
 
-        await self._sync_current_campaign_orders()
+        current_campaign_view = None
+        if self.current_campaign is not None:
+            current_campaign_view = await self._get_campaign_view(self.current_campaign)
+
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
                                         klines=self.klines,
-                                        current_campaign=self.current_campaign,
+                                        current_campaign=current_campaign_view,
                                         account_snapshot=account_snapshot)
 
         if isinstance(signal, OpenCampaign):
@@ -59,7 +62,7 @@ class TradingSession:
 
         if isinstance(signal, CloseCampaign):
             self.logger.signal("CloseCampaign")
-            await self._close_campaign(signal, kline)
+            await self._close_campaign(signal, kline, current_campaign_view)
             return
 
         if isinstance(signal, NoAction):
@@ -68,17 +71,18 @@ class TradingSession:
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
 
-    async def _sync_current_campaign_orders(self) -> None:
-        if self.current_campaign is None:
-            return
+    async def _get_campaign_view(self, campaign: Campaign) -> CampaignView:
+        orders: list[Order] = []
 
-        updated_orders: list[Order] = []
+        for order_id in campaign.order_ids:
+            order = await self.executor.get_order(order_id)
+            orders.append(order)
 
-        for order in self.current_campaign.orders:
-            updated_order = await self.executor.sync_order_status(order)
-            updated_orders.append(updated_order)
-
-        self.current_campaign.orders = updated_orders
+        return CampaignView(
+            state=campaign.state,
+            health=campaign.health,
+            orders=tuple(orders),
+        )
 
     async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is not None:
@@ -96,7 +100,8 @@ class TradingSession:
             campaign_number=len(self.campaigns),
         )
 
-        campaign.orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
+        orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
+        campaign.order_ids = [order.order_id for order in orders]
         campaign.state = CampaignState.OPEN
 
         self.logger.campaign("Opened campaign")
@@ -150,8 +155,8 @@ class TradingSession:
 
         raise ValueError(f"Unsupported order type: {order.request.order_type}")
 
-    async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
-        if self.current_campaign is None:
+    async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent, current_campaign: CampaignView | None) -> None:
+        if self.current_campaign is None or current_campaign is None:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
@@ -162,35 +167,36 @@ class TradingSession:
 
         pending_order_ids = [
             order.order_id
-            for order in campaign.orders
+            for order in current_campaign.orders
             if order.status in {"NEW", "PARTIALLY_FILLED"}
         ]
-        campaign.orders = await self._cancel_orders(orders=campaign.orders, order_ids_to_cancel=pending_order_ids)
+
+        await self._cancel_orders(orders=list(current_campaign.orders), order_ids_to_cancel=pending_order_ids)
         self.logger.campaign(f"Orders canceled: {len(pending_order_ids)}")
 
         close_orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-        campaign.orders.extend(close_orders)
+        campaign.order_ids.extend([order.order_id for order in close_orders])
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
         campaign.state = CampaignState.CLOSED
 
+        campaign_view = await self._get_campaign_view(campaign)
+
         self.logger.campaign("Closed campaign")
-        self.logger.campaign_summary(campaign)
+        self.logger.campaign_summary(campaign_view)
         self.logger.campaigns_history(self.campaigns)
 
         self.current_campaign = None
 
         await self.reconciliation_reporter.on_campaign_closed(
-            campaign=campaign,
+            campaign=campaign_view,
         )
 
-    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
-        updated_orders: list[Order] = []
+    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> None:
         canceled_orders: list[Order] = []
 
         for order in orders:
             if order.order_id not in order_ids_to_cancel:
-                updated_orders.append(order)
                 continue
 
             previous_status = order.status
@@ -209,14 +215,10 @@ class TradingSession:
                     f"status={canceled_order.status}"
                 )
 
-            updated_orders.append(canceled_order)
-
             if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
                 canceled_orders.append(canceled_order)
 
         self.logger.canceled_orders(canceled_orders)
-
-        return updated_orders
 
     def _require_recovery(self, error: Exception) -> None:
         if self.current_campaign is None:

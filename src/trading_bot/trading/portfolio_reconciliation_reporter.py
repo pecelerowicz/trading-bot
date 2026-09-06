@@ -4,8 +4,9 @@ from pathlib import Path
 
 from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.instrument import Instrument
+from trading_bot.models.order import Order
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.campaign import CampaignView
 
 
 class PortfolioReconciliationReporter:
@@ -25,7 +26,7 @@ class PortfolioReconciliationReporter:
         self.current_campaign_number = campaign_number
         self.account_before = await self.executor.get_account_snapshot()
 
-    async def on_campaign_closed(self, campaign: Campaign) -> None:
+    async def on_campaign_closed(self, campaign: CampaignView) -> None:
         if self.current_campaign_number is None or self.account_before is None:
             raise RuntimeError("Missing opening snapshot for current campaign")
 
@@ -79,10 +80,10 @@ class PortfolioReconciliationReporter:
             "[2] CAMPAIGN — CALCULATED FROM ORDER EXECUTIONS",
             "",
             "    EXECUTED ORDERS",
-            *self._executed_order_lines(campaign),
+            *self._executed_order_lines(campaign.orders),
             "",
             "    NON-EXECUTED ORDERS",
-            *self._non_executed_order_lines(campaign),
+            *self._non_executed_order_lines(campaign.orders),
             "",
             "    CAMPAIGN DELTA CALCULATED FROM ORDERS",
             f"        {self.instrument.base_asset:<5}= {summary.net_base_delta:+.8f}",
@@ -122,10 +123,10 @@ class PortfolioReconciliationReporter:
         self.current_campaign_number = None
         self.account_before = None
 
-    def _executed_order_lines(self, campaign: Campaign) -> list[str]:
+    def _executed_order_lines(self, orders: tuple[Order, ...]) -> list[str]:
         executed_orders = [
             order
-            for order in campaign.orders
+            for order in orders
             if order.filled_quantity > Decimal("0")
         ]
 
@@ -144,10 +145,10 @@ class PortfolioReconciliationReporter:
             for order in executed_orders
         ]
 
-    def _non_executed_order_lines(self, campaign: Campaign) -> list[str]:
+    def _non_executed_order_lines(self, orders: tuple[Order, ...]) -> list[str]:
         non_executed_orders = [
             order
-            for order in campaign.orders
+            for order in orders
             if order.filled_quantity == Decimal("0")
         ]
 

@@ -36,7 +36,7 @@ class CampaignExecutionSummary:
 
 @dataclass
 class Campaign:
-    orders: list[Order] = field(default_factory=list)
+    order_ids: list[str] = field(default_factory=list)
     state: CampaignState = CampaignState.OPENING
     health: CampaignHealth = CampaignHealth.NORMAL
 
@@ -56,16 +56,28 @@ class Campaign:
     def is_closed(self) -> bool:
         return self.state == CampaignState.CLOSED
 
+
+@dataclass(frozen=True)
+class CampaignView:
+    state: CampaignState
+    health: CampaignHealth
+    orders: tuple[Order, ...]
+
     @property
-    def order_ids(self) -> list[str]:
-        return [order.order_id for order in self.orders]
+    def is_open(self) -> bool:
+        return self.state == CampaignState.OPEN
 
-    def get_order(self, order_id: str) -> Order | None:
-        for order in self.orders:
-            if order.order_id == order_id:
-                return order
+    @property
+    def is_closing(self) -> bool:
+        return self.state == CampaignState.CLOSING
 
-        return None
+    @property
+    def is_recovery(self) -> bool:
+        return self.health == CampaignHealth.RECOVERY_REQUIRED
+
+    @property
+    def is_closed(self) -> bool:
+        return self.state == CampaignState.CLOSED
 
     def execution_summary(self) -> CampaignExecutionSummary:
         bought_base = Decimal("0.0")
