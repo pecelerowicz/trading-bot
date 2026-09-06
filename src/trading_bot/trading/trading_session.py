@@ -44,10 +44,7 @@ class TradingSession:
         # artifact: needed just for paper executor
         await self.executor.update_executor(kline)
 
-        current_campaign_view = None
-        if self.current_campaign is not None:
-            current_campaign_view = await self._get_campaign_view(self.current_campaign)
-
+        current_campaign_view: CampaignView | None = await self._get_campaign_view(self.current_campaign)
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
@@ -71,7 +68,10 @@ class TradingSession:
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
 
-    async def _get_campaign_view(self, campaign: Campaign) -> CampaignView:
+    async def _get_campaign_view(self, campaign: Campaign | None) -> CampaignView | None:
+        if campaign is None:
+            return None
+
         orders: list[Order] = []
 
         for order_id in campaign.order_ids:
