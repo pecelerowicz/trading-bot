@@ -156,13 +156,14 @@ class TradingSession:
         raise ValueError(f"Unsupported order type: {order.request.order_type}")
 
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent, current_campaign: CampaignView | None) -> None:
-        if self.current_campaign is None or current_campaign is None:
+        campaign = self.current_campaign
+
+        if campaign is None or current_campaign is None:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
         self.logger.campaign("Closing campaign")
 
-        campaign = self.current_campaign
         campaign.state = CampaignState.CLOSING
 
         pending_order_ids = [
