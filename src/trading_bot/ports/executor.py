@@ -13,7 +13,7 @@ class Executor(Protocol):
     async def place_order(self, order_request: OrderRequest) -> Order:
         ...
 
-    async def sync_order_status(self, order: Order) -> Order:
+    async def get_order(self, order_id: str) -> Order:
         ...
 
     async def cancel_order(self, order: Order) -> Order:

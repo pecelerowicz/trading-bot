@@ -5,7 +5,7 @@ from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
 from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
-from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.campaign import CampaignView
 
 
 class ThreeGreenPyramidSellStrategy:
@@ -17,7 +17,7 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: Campaign | None,
+        current_campaign: CampaignView | None,
         account_snapshot: AccountSnapshot
     ) -> StrategySignal:
         if current_campaign is None:
@@ -30,12 +30,6 @@ class ThreeGreenPyramidSellStrategy:
                                           klines=klines,
                                           current_campaign=current_campaign,
                                           account_snapshot=account_snapshot)
-
-        if current_campaign.is_closing:
-            return self._on_closing_campaign(kline=kline,
-                                             klines=klines,
-                                             current_campaign=current_campaign,
-                                             account_snapshot=account_snapshot)
 
         raise RuntimeError(f"Campaign in unexpected state: {current_campaign.state.value}")
 
@@ -87,7 +81,7 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: Campaign,
+        current_campaign: CampaignView,
         account_snapshot: AccountSnapshot
     ) -> CloseCampaign | NoAction:
         if len(klines) >= 2:
@@ -118,25 +112,6 @@ class ThreeGreenPyramidSellStrategy:
                         )
                     )
 
-                return CloseCampaign(
-                    order_requests=order_requests,
-                    order_ids_to_cancel=[
-                        order_id
-                        for order_id in current_campaign.order_ids
-                        if (
-                            order := current_campaign.get_order(order_id)
-                        ) is not None
-                        and order.status in {"NEW", "PARTIALLY_FILLED"}
-                    ],
-                )
+                return CloseCampaign(order_requests=order_requests)
 
-        return NoAction()
-
-    def _on_closing_campaign(
-        self,
-        kline: KlineEvent,
-        klines: list[KlineEvent],
-        current_campaign: Campaign,
-        account_snapshot: AccountSnapshot
-    ) -> CloseCampaign | NoAction:
         return NoAction()

@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
-from trading_bot.trading.campaign import Campaign
+from trading_bot.trading.campaign import Campaign, CampaignView
 
 
 class TradingDebugLogger:
@@ -148,7 +148,7 @@ class TradingDebugLogger:
             f"low={kline.low:.4f}"
         )
 
-    def campaign_summary(self, campaign: Campaign) -> None:
+    def campaign_summary(self, campaign: CampaignView) -> None:
         filled = len([order for order in campaign.orders if order.status == "FILLED"])
         canceled = len([order for order in campaign.orders if order.status == "CANCELED"])
         rejected = len([order for order in campaign.orders if order.status == "REJECTED"])
@@ -226,16 +226,9 @@ class TradingDebugLogger:
         ):
             status = campaign.state.value
 
-            filled = len([
-                order
-                for order in campaign.orders
-                if order.status == "FILLED"
-            ])
-
             recent_campaigns.append(
                 f"#{index} {status} "
-                f"orders={len(campaign.orders)} "
-                f"filled={filled}"
+                f"orders={len(campaign.order_ids)}"
             )
 
         if recent_campaigns:

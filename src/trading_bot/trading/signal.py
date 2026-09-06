@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TypeAlias
 
 from trading_bot.models.order import OrderRequest
@@ -12,7 +12,10 @@ class OpenCampaign:
 @dataclass(frozen=True)
 class CloseCampaign:
     order_requests: list[OrderRequest]
-    order_ids_to_cancel: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        if any(order_request.order_type != "MARKET" for order_request in self.order_requests):
+            raise ValueError("CloseCampaign supports only MARKET orders")
 
 
 @dataclass(frozen=True)

@@ -322,11 +322,11 @@ class PaperExecutor:
         self._orders_by_id[order.order_id] = updated_order
         return updated_order
 
-    async def sync_order_status(self, order: Order) -> Order:
+    async def get_order(self, order_id: str) -> Order:
         try:
-            return self._orders_by_id[order.order_id]
+            return self._orders_by_id[order_id]
         except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order.order_id}") from error
+            raise KeyError(f"Unknown paper order: {order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
