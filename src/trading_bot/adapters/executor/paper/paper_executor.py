@@ -328,6 +328,12 @@ class PaperExecutor:
         except KeyError as error:
             raise KeyError(f"Unknown paper order: {order.order_id}") from error
 
+    async def get_order(self, order_id: str) -> Order:
+        try:
+            return self._orders_by_id[order_id]
+        except KeyError as error:
+            raise KeyError(f"Unknown paper order: {order_id}") from error
+
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
             balances=tuple(

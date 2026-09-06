@@ -45,6 +45,17 @@ class BinanceExecutor:
 
         return self._map_order(raw_order=raw_order, order_request=order.request)
 
+    async def get_order(self, order_id: str) -> Order:
+        raw_order = await self._client.get_order(
+            symbol=self._instrument.symbol,
+            orderId=int(order_id),
+        )
+
+        return self._map_order(
+            raw_order=raw_order,
+            order_request=self._map_order_request(raw_order),
+        )
+
     async def cancel_order(self, order: Order) -> Order:
         raw_order = await self._client.cancel_order(
             symbol=self._instrument.symbol,
@@ -80,6 +91,23 @@ class BinanceExecutor:
             ),
             filled_quantity=filled_quantity,
             average_fill_price=average_fill_price,
+        )
+
+    def _map_order_request(self, raw_order: dict[str, Any]) -> OrderRequest:
+        order_type = raw_order["type"]
+
+        if order_type not in {"MARKET", "LIMIT"}:
+            raise ValueError(f"Unsupported Binance order type: {order_type}")
+
+        price = None
+        if order_type == "LIMIT":
+            price = Decimal(raw_order["price"])
+
+        return OrderRequest(
+            side=raw_order["side"],
+            order_type=order_type,
+            quantity=Decimal(raw_order["origQty"]),
+            price=price,
         )
 
     def _map_order_status(self, status: str, filled_quantity: Decimal) -> OrderStatus:
