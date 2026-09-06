@@ -31,12 +31,6 @@ class ThreeGreenPyramidSellStrategy:
                                           current_campaign=current_campaign,
                                           account_snapshot=account_snapshot)
 
-        if current_campaign.is_closing:
-            return self._on_closing_campaign(kline=kline,
-                                             klines=klines,
-                                             current_campaign=current_campaign,
-                                             account_snapshot=account_snapshot)
-
         raise RuntimeError(f"Campaign in unexpected state: {current_campaign.state.value}")
 
     def _on_no_campaign(
@@ -118,25 +112,6 @@ class ThreeGreenPyramidSellStrategy:
                         )
                     )
 
-                return CloseCampaign(
-                    order_requests=order_requests,
-                    order_ids_to_cancel=[
-                        order_id
-                        for order_id in current_campaign.order_ids
-                        if (
-                            order := current_campaign.get_order(order_id)
-                        ) is not None
-                        and order.status in {"NEW", "PARTIALLY_FILLED"}
-                    ],
-                )
+                return CloseCampaign(order_requests=order_requests)
 
-        return NoAction()
-
-    def _on_closing_campaign(
-        self,
-        kline: KlineEvent,
-        klines: list[KlineEvent],
-        current_campaign: Campaign,
-        account_snapshot: AccountSnapshot
-    ) -> CloseCampaign | NoAction:
         return NoAction()

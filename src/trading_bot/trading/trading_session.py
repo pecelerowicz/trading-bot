@@ -45,7 +45,6 @@ class TradingSession:
         await self.executor.update_executor(kline)
 
         await self._sync_current_campaign_orders()
-        await self._close_current_campaign_if_ready()
         account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
@@ -80,34 +79,6 @@ class TradingSession:
             updated_orders.append(updated_order)
 
         self.current_campaign.orders = updated_orders
-
-    async def _close_current_campaign_if_ready(self) -> None:
-        if self.current_campaign is None:
-            return
-
-        if not self.current_campaign.is_closing:
-            return
-
-        has_pending_orders = any(
-            order.status in {"NEW", "PARTIALLY_FILLED"}
-            for order in self.current_campaign.orders
-        )
-
-        if has_pending_orders:
-            return
-
-        campaign = self.current_campaign
-        campaign.state = CampaignState.CLOSED
-
-        self.logger.campaign("Closed campaign")
-        self.logger.campaign_summary(campaign)
-        self.logger.campaigns_history(self.campaigns)
-
-        self.current_campaign = None
-
-        await self.reconciliation_reporter.on_campaign_closed(
-            campaign=campaign,
-        )
 
     async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is not None:
@@ -186,16 +157,32 @@ class TradingSession:
 
         self.logger.campaign("Closing campaign")
 
-        self.current_campaign.state = CampaignState.CLOSING
+        campaign = self.current_campaign
+        campaign.state = CampaignState.CLOSING
 
-        self.current_campaign.orders = await self._cancel_orders(orders=self.current_campaign.orders, order_ids_to_cancel=signal.order_ids_to_cancel)
-        self.logger.campaign(f"Orders canceled: {len(signal.order_ids_to_cancel)}")
+        pending_order_ids = [
+            order.order_id
+            for order in campaign.orders
+            if order.status in {"NEW", "PARTIALLY_FILLED"}
+        ]
+        campaign.orders = await self._cancel_orders(orders=campaign.orders, order_ids_to_cancel=pending_order_ids)
+        self.logger.campaign(f"Orders canceled: {len(pending_order_ids)}")
 
         close_orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
-        self.current_campaign.orders.extend(close_orders)
+        campaign.orders.extend(close_orders)
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        await self._close_current_campaign_if_ready()
+        campaign.state = CampaignState.CLOSED
+
+        self.logger.campaign("Closed campaign")
+        self.logger.campaign_summary(campaign)
+        self.logger.campaigns_history(self.campaigns)
+
+        self.current_campaign = None
+
+        await self.reconciliation_reporter.on_campaign_closed(
+            campaign=campaign,
+        )
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         updated_orders: list[Order] = []
