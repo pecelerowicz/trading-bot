@@ -5,7 +5,7 @@ from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
 from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
-from trading_bot.trading.campaign import CampaignView
+from trading_bot.models.campaign import CampaignView
 
 
 class ThreeGreenPyramidSellStrategy:

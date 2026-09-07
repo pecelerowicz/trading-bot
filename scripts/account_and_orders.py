@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from binance import Client
 
 from scripts.binance_account_and_order_api import BinanceAccountAndOrderApi

@@ -2,7 +2,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import Campaign, CampaignHealth, CampaignState, CampaignView
+from trading_bot.models.campaign import Campaign, CampaignView
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.errors import (
     LimitOrderNotAcceptedError,
@@ -102,7 +102,7 @@ class TradingSession:
 
         orders = await self._place_orders(order_requests=signal.order_requests, kline=kline)
         campaign.order_ids = [order.order_id for order in orders]
-        campaign.state = CampaignState.OPEN
+        campaign.mark_open()
 
         self.logger.campaign("Opened campaign")
 
@@ -164,7 +164,7 @@ class TradingSession:
 
         self.logger.campaign("Closing campaign")
 
-        campaign.state = CampaignState.CLOSING
+        campaign.begin_closing()
 
         pending_order_ids = [
             order.order_id
@@ -179,7 +179,7 @@ class TradingSession:
         campaign.order_ids.extend([order.order_id for order in close_orders])
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
-        campaign.state = CampaignState.CLOSED
+        campaign.mark_closed()
 
         campaign_view = await self._get_campaign_view(campaign)
 
@@ -228,7 +228,7 @@ class TradingSession:
         if self.current_campaign.is_closed:
             return
 
-        self.current_campaign.health = CampaignHealth.RECOVERY_REQUIRED
+        self.current_campaign.require_recovery()
         self.logger.campaign(
             f"Recovery required in {self.current_campaign.state.value}: "
             f"{type(error).__name__}: {error}"
