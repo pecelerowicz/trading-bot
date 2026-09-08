@@ -1,6 +1,7 @@
 import asyncio
 
 from trading_bot.composition import build_executor, build_market_data_source
+from trading_bot.trading.campaign_service import CampaignService
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyramidSellStrategy
@@ -24,8 +25,9 @@ async def main():
         market_data_source, market_data_client = await build_market_data_source(app_config=app_config)
         executor, executor_client = await build_executor(app_config=app_config, instrument=instrument, logger=logger)
 
+        campaign_service = CampaignService(executor=executor, logger=logger)
         reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
-        trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
+        trading_session = TradingSession(strategy=strategy, executor=executor, campaign_service=campaign_service, logger=logger, reconciliation_reporter=reconciliation_reporter)
 
         app = TradingApp(
             market_data_source=market_data_source,
