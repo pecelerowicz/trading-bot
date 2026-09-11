@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
-from trading_bot.trading.campaign import Campaign, CampaignView
+from trading_bot.models.campaign import Campaign, CampaignView
 
 
 class TradingDebugLogger:

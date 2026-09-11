@@ -6,7 +6,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.order import Order
 from trading_bot.ports.executor import Executor
-from trading_bot.trading.campaign import CampaignView
+from trading_bot.models.campaign import CampaignView
 
 
 class PortfolioReconciliationReporter:

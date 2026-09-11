@@ -7,6 +7,7 @@ from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyra
 from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
 from trading_bot.models.instrument import Instrument
+from trading_bot.trading.trading_execution_service import TradingExecutionService
 from trading_bot.trading.trading_session import TradingSession
 
 
@@ -24,8 +25,9 @@ async def main():
         market_data_source, market_data_client = await build_market_data_source(app_config=app_config)
         executor, executor_client = await build_executor(app_config=app_config, instrument=instrument, logger=logger)
 
+        execution_service = TradingExecutionService(executor=executor, logger=logger)
         reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
-        trading_session = TradingSession(strategy=strategy, executor=executor, logger=logger, reconciliation_reporter=reconciliation_reporter)
+        trading_session = TradingSession(strategy=strategy, execution_service=execution_service, logger=logger, reconciliation_reporter=reconciliation_reporter)
 
         app = TradingApp(
             market_data_source=market_data_source,

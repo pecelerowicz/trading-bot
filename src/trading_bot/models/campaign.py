@@ -37,8 +37,16 @@ class CampaignExecutionSummary:
 @dataclass
 class Campaign:
     order_ids: list[str] = field(default_factory=list)
-    state: CampaignState = CampaignState.OPENING
-    health: CampaignHealth = CampaignHealth.NORMAL
+    _state: CampaignState = field(default=CampaignState.OPENING, init=False, repr=False)
+    _health: CampaignHealth = field(default=CampaignHealth.NORMAL, init=False, repr=False)
+
+    @property
+    def state(self) -> CampaignState:
+        return self._state
+
+    @property
+    def health(self) -> CampaignHealth:
+        return self._health
 
     @property
     def is_open(self) -> bool:
@@ -55,6 +63,30 @@ class Campaign:
     @property
     def is_closed(self) -> bool:
         return self.state == CampaignState.CLOSED
+
+    def mark_open(self) -> None:
+        if self.state != CampaignState.OPENING:
+            raise RuntimeError(f"Cannot open campaign from state {self.state.value}")
+
+        self._state = CampaignState.OPEN
+
+    def begin_closing(self) -> None:
+        if self.state != CampaignState.OPEN:
+            raise RuntimeError(f"Cannot close campaign from state {self.state.value}")
+
+        self._state = CampaignState.CLOSING
+
+    def mark_closed(self) -> None:
+        if self.state != CampaignState.CLOSING:
+            raise RuntimeError(f"Cannot mark campaign as closed from state {self.state.value}")
+
+        self._state = CampaignState.CLOSED
+
+    def require_recovery(self) -> None:
+        if self.is_closed:
+            return
+
+        self._health = CampaignHealth.RECOVERY_REQUIRED
 
 
 @dataclass(frozen=True)
