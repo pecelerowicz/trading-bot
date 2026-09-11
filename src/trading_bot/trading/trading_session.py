@@ -33,36 +33,37 @@ class TradingSession:
         self.logger.candle(kline)
         self.klines.append(kline)
 
-        # artifact: needed just for paper executor
         await self.execution_service.update_executor(kline)
 
-        current_campaign_view: CampaignView | None = None
+        signal = await self._get_strategy_signal(kline)
+        await self._handle_signal(signal, kline)
 
-        if self.current_campaign is not None:
-            current_campaign_view = await self.execution_service.get_campaign_view(self.current_campaign)
 
+
+    async def _get_strategy_signal(self, kline: KlineEvent) -> OpenCampaign | CloseCampaign | NoAction:
+        current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
         account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
 
-        signal = self.strategy.on_kline(kline=kline,
-                                        klines=self.klines,
-                                        current_campaign=current_campaign_view,
-                                        account_snapshot=account_snapshot)
+        return self.strategy.on_kline(kline=kline,
+                                      klines=self.klines,
+                                      current_campaign=current_campaign_view,
+                                      account_snapshot=account_snapshot)
 
-        if isinstance(signal, OpenCampaign):
-            self.logger.signal("OpenCampaign")
-            await self._open_campaign(signal, kline)
-            return
+    async def _handle_signal(self, signal: OpenCampaign | CloseCampaign | NoAction, kline: KlineEvent) -> None:
+        self.logger.signal(type(signal).__name__)
 
-        if isinstance(signal, CloseCampaign):
-            self.logger.signal("CloseCampaign")
-            await self._close_campaign(signal, kline)
-            return
+        match signal:
+            case OpenCampaign():
+                await self._open_campaign(signal, kline)
 
-        if isinstance(signal, NoAction):
-            self.logger.signal("NoAction")
-            return
+            case CloseCampaign():
+                await self._close_campaign(signal, kline)
 
-        self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
+            case NoAction():
+                return
+
+            case _:
+                raise TypeError(f"Unsupported strategy signal: {type(signal).__name__}")
 
     async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is not None:

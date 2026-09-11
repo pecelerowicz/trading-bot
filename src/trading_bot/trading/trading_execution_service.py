@@ -25,7 +25,10 @@ class TradingExecutionService:
     async def get_account_snapshot(self) -> AccountSnapshot:
         return await self.executor.get_account_snapshot()
 
-    async def get_campaign_view(self, campaign: Campaign) -> CampaignView:
+    async def get_campaign_view(self, campaign: Campaign | None) -> CampaignView | None:
+        if campaign is None:
+            return None
+
         orders = await self._get_orders(campaign)
 
         return CampaignView(
