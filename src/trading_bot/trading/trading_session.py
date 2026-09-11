@@ -1,20 +1,18 @@
 from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.ports.executor import Executor
 from trading_bot.models.campaign import Campaign, CampaignView
-from trading_bot.trading.campaign_service import CampaignService
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
 from trading_bot.trading.strategy import Strategy
+from trading_bot.trading.trading_execution_service import TradingExecutionService
 
 
 class TradingSession:
 
-    def __init__(self, strategy: Strategy, executor: Executor, campaign_service: CampaignService, logger: TradingDebugLogger, reconciliation_reporter: PortfolioReconciliationReporter) -> None:
+    def __init__(self, strategy: Strategy, execution_service: TradingExecutionService, logger: TradingDebugLogger, reconciliation_reporter: PortfolioReconciliationReporter) -> None:
         self.strategy = strategy
-        self.executor = executor
-        self.campaign_service = campaign_service
+        self.execution_service = execution_service
         self.logger = logger
         self.reconciliation_reporter = reconciliation_reporter
         self.klines: list[KlineEvent] = []
@@ -36,14 +34,14 @@ class TradingSession:
         self.klines.append(kline)
 
         # artifact: needed just for paper executor
-        await self.executor.update_executor(kline)
+        await self.execution_service.update_executor(kline)
 
         current_campaign_view: CampaignView | None = None
 
         if self.current_campaign is not None:
-            current_campaign_view = await self._get_campaign_view(self.current_campaign)
+            current_campaign_view = await self.execution_service.get_campaign_view(self.current_campaign)
 
-        account_snapshot: AccountSnapshot = await self.executor.get_account_snapshot()
+        account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
 
         signal = self.strategy.on_kline(kline=kline,
                                         klines=self.klines,
@@ -66,21 +64,10 @@ class TradingSession:
 
         self.logger.signal(f"Unknown signal ignored: {type(signal).__name__}")
 
-    async def _get_campaign_view(self, campaign: Campaign) -> CampaignView:
-        orders = await self.campaign_service.get_orders(campaign)
-
-        return CampaignView(
-            state=campaign.state,
-            health=campaign.health,
-            orders=orders,
-        )
-
     async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
         if self.current_campaign is not None:
             self.logger.campaign("Open signal ignored: current campaign already exists")
             return
-
-        self.logger.campaign("Opening campaign")
 
         campaign = Campaign()
 
@@ -91,9 +78,7 @@ class TradingSession:
             campaign_number=len(self.campaigns),
         )
 
-        await self.campaign_service.open(campaign=campaign, order_requests=signal.order_requests, kline=kline)
-
-        self.logger.campaign("Opened campaign")
+        await self.execution_service.open_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
 
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
         campaign = self.current_campaign
@@ -102,13 +87,10 @@ class TradingSession:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
-        self.logger.campaign("Closing campaign")
+        await self.execution_service.close_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
 
-        await self.campaign_service.close(campaign=campaign, order_requests=signal.order_requests, kline=kline)
+        campaign_view = await self.execution_service.get_campaign_view(campaign)
 
-        campaign_view = await self._get_campaign_view(campaign)
-
-        self.logger.campaign("Closed campaign")
         self.logger.campaign_summary(campaign_view)
         self.logger.campaigns_history(self.campaigns)
 

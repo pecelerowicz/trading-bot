@@ -1,4 +1,5 @@
-from trading_bot.models.campaign import Campaign
+from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import Campaign, CampaignView
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
@@ -12,30 +13,42 @@ from trading_bot.trading.errors import (
 )
 
 
-class CampaignService:
+class TradingExecutionService:
 
     def __init__(self, executor: Executor, logger: TradingDebugLogger) -> None:
         self.executor = executor
         self.logger = logger
 
-    async def get_orders(self, campaign: Campaign) -> tuple[Order, ...]:
-        orders: list[Order] = []
+    async def update_executor(self, kline: KlineEvent) -> None:
+        await self.executor.update_executor(kline)
 
-        for order_id in campaign.order_ids:
-            order = await self.executor.get_order(order_id)
-            orders.append(order)
+    async def get_account_snapshot(self) -> AccountSnapshot:
+        return await self.executor.get_account_snapshot()
 
-        return tuple(orders)
+    async def get_campaign_view(self, campaign: Campaign) -> CampaignView:
+        orders = await self._get_orders(campaign)
 
-    async def open(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+        return CampaignView(
+            state=campaign.state,
+            health=campaign.health,
+            orders=orders,
+        )
+
+    async def open_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+        self.logger.campaign("Opening campaign")
+
         orders = await self._place_orders(order_requests=order_requests, kline=kline)
         campaign.order_ids = [order.order_id for order in orders]
         campaign.mark_open()
 
-    async def close(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+        self.logger.campaign("Opened campaign")
+
+    async def close_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+        self.logger.campaign("Closing campaign")
+
         campaign.begin_closing()
 
-        orders = await self.get_orders(campaign)
+        orders = await self._get_orders(campaign)
 
         pending_order_ids = [
             order.order_id
@@ -51,6 +64,17 @@ class CampaignService:
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
         campaign.mark_closed()
+
+        self.logger.campaign("Closed campaign")
+
+    async def _get_orders(self, campaign: Campaign) -> tuple[Order, ...]:
+        orders: list[Order] = []
+
+        for order_id in campaign.order_ids:
+            order = await self.executor.get_order(order_id)
+            orders.append(order)
+
+        return tuple(orders)
 
     async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
         orders: list[Order] = []
