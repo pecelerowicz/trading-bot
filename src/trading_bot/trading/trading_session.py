@@ -3,7 +3,7 @@ from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.campaign import Campaign, CampaignView
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
-from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign
+from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign, StrategySignal
 from trading_bot.trading.strategy import Strategy
 from trading_bot.trading.trading_execution_service import TradingExecutionService
 
@@ -38,9 +38,7 @@ class TradingSession:
         signal = await self._get_strategy_signal(kline)
         await self._handle_signal(signal, kline)
 
-
-
-    async def _get_strategy_signal(self, kline: KlineEvent) -> OpenCampaign | CloseCampaign | NoAction:
+    async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal:
         current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
         account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
 
@@ -49,7 +47,7 @@ class TradingSession:
                                       current_campaign=current_campaign_view,
                                       account_snapshot=account_snapshot)
 
-    async def _handle_signal(self, signal: OpenCampaign | CloseCampaign | NoAction, kline: KlineEvent) -> None:
+    async def _handle_signal(self, signal: StrategySignal, kline: KlineEvent) -> None:
         self.logger.signal(type(signal).__name__)
 
         match signal:
