@@ -1,3 +1,3 @@
 pandas
-python-binance
+python-binance==1.0.36
 python-dotenv
