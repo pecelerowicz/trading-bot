@@ -130,9 +130,7 @@ class PaperExecutor:
         raise ValueError(f"Unsupported order side: {order_request.side}")
 
     def _settle_limit_order(self, order: Order) -> None:
-        request = order.request
-
-        if request.price is None:
+        if order.price is None:
             raise RuntimeError(f"Limit order {order.order_id} has no price")
 
         base_asset = self._instrument.base_asset
@@ -141,10 +139,10 @@ class PaperExecutor:
         base_balance = self._balances_by_asset[base_asset]
         quote_balance = self._balances_by_asset[quote_asset]
 
-        quantity = request.quantity
-        quote_quantity = quantity * request.price
+        quantity = order.quantity
+        quote_quantity = quantity * order.price
 
-        if request.side == "BUY":
+        if order.side == "BUY":
             updated_base_balance = replace(
                 base_balance,
                 free=base_balance.free + quantity,
@@ -155,7 +153,7 @@ class PaperExecutor:
                 locked=quote_balance.locked - quote_quantity,
             )
 
-        elif request.side == "SELL":
+        elif order.side == "SELL":
             updated_base_balance = replace(
                 base_balance,
                 locked=base_balance.locked - quantity,
@@ -167,15 +165,13 @@ class PaperExecutor:
             )
 
         else:
-            raise ValueError(f"Unsupported order side: {request.side}")
+            raise ValueError(f"Unsupported order side: {order.side}")
 
         self._balances_by_asset[base_asset] = updated_base_balance
         self._balances_by_asset[quote_asset] = updated_quote_balance
 
     def _release_limit_order(self, order: Order) -> None:
-        request = order.request
-
-        if request.price is None:
+        if order.price is None:
             raise RuntimeError(f"Limit order {order.order_id} has no price")
 
         base_asset = self._instrument.base_asset
@@ -184,10 +180,10 @@ class PaperExecutor:
         base_balance = self._balances_by_asset[base_asset]
         quote_balance = self._balances_by_asset[quote_asset]
 
-        quantity = request.quantity
-        quote_quantity = quantity * request.price
+        quantity = order.quantity
+        quote_quantity = quantity * order.price
 
-        if request.side == "BUY":
+        if order.side == "BUY":
             updated_quote_balance = replace(
                 quote_balance,
                 free=quote_balance.free + quote_quantity,
@@ -197,7 +193,7 @@ class PaperExecutor:
             self._balances_by_asset[quote_asset] = updated_quote_balance
             return
 
-        if request.side == "SELL":
+        if order.side == "SELL":
             updated_base_balance = replace(
                 base_balance,
                 free=base_balance.free + quantity,
@@ -207,7 +203,7 @@ class PaperExecutor:
             self._balances_by_asset[base_asset] = updated_base_balance
             return
 
-        raise ValueError(f"Unsupported order side: {request.side}")
+        raise ValueError(f"Unsupported order side: {order.side}")
 
     async def update_executor(self, kline: KlineEvent) -> None:
         self._current_kline = kline
@@ -217,13 +213,11 @@ class PaperExecutor:
             if order.status != "NEW":
                 continue
 
-            request = order.request
-
-            if request.order_type != "LIMIT" or request.price is None:
+            if order.order_type != "LIMIT" or order.price is None:
                 continue
 
-            buy_filled = request.side == "BUY" and kline.low <= request.price
-            sell_filled = request.side == "SELL" and kline.high >= request.price
+            buy_filled = order.side == "BUY" and kline.low <= order.price
+            sell_filled = order.side == "SELL" and kline.high >= order.price
 
             if not (buy_filled or sell_filled):
                 continue
@@ -233,8 +227,8 @@ class PaperExecutor:
             updated_order = replace(
                 order,
                 status="FILLED",
-                filled_quantity=request.quantity,
-                average_fill_price=request.price,
+                filled_quantity=order.quantity,
+                average_fill_price=order.price,
             )
 
             self._orders_by_id[order_id] = updated_order
@@ -261,7 +255,10 @@ class PaperExecutor:
 
             order = Order(
                 order_id=str(self._next_order_id),
-                request=order_request,
+                side=order_request.side,
+                order_type=order_request.order_type,
+                quantity=order_request.quantity,
+                price=order_request.price,
                 status="FILLED",
                 filled_quantity=order_request.quantity,
                 average_fill_price=execution_price,
@@ -278,7 +275,10 @@ class PaperExecutor:
 
             order = Order(
                 order_id=str(self._next_order_id),
-                request=order_request,
+                side=order_request.side,
+                order_type=order_request.order_type,
+                quantity=order_request.quantity,
+                price=order_request.price,
                 status="NEW",
                 filled_quantity=Decimal("0.0"),
                 average_fill_price=None,
@@ -311,7 +311,7 @@ class PaperExecutor:
                 value=stored_order,
             )
 
-        if stored_order.request.order_type == "LIMIT":
+        if stored_order.order_type == "LIMIT":
             self._release_limit_order(stored_order)
 
         updated_order = replace(

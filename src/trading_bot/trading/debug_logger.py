@@ -90,13 +90,13 @@ class TradingDebugLogger:
     def _compact_order(self, order: Order) -> str:
         order_type = (
             "MKT"
-            if order.request.order_type == "MARKET"
+            if order.order_type == "MARKET"
             else "LMT"
         )
 
         price = (
-            f"{order.request.price:.4f}"
-            if order.request.price is not None
+            f"{order.price:.4f}"
+            if order.price is not None
             else (
                 f"{order.average_fill_price:.4f}"
                 if order.average_fill_price is not None
@@ -106,8 +106,8 @@ class TradingDebugLogger:
 
         return (
             f"#{order.order_id} "
-            f"{order.request.side} {order_type} "
-            f"q={order.request.quantity} "
+            f"{order.side} {order_type} "
+            f"q={order.quantity} "
             f"p={price} "
             f"[{order.status}]"
         )
@@ -115,7 +115,7 @@ class TradingDebugLogger:
     def cancel_order(self, order: Order) -> None:
         self.order(
             f"Canceled order #{order.order_id}: "
-            f"{order.request.side} {order.request.order_type}"
+            f"{order.side} {order.order_type}"
         )
 
     def fill_market_order(self, order: Order, kline: KlineEvent) -> None:
@@ -128,7 +128,7 @@ class TradingDebugLogger:
         self.fill(
             f"Market order filled: "
             f"#{order.order_id} | "
-            f"{order.request.side} {order.filled_quantity} @ {price} | "
+            f"{order.side} {order.filled_quantity} @ {price} | "
             f"kline={kline.open_time.strftime('%H:%M')}"
         )
 
@@ -142,7 +142,7 @@ class TradingDebugLogger:
         self.fill(
             f"Limit order filled: "
             f"#{order.order_id} | "
-            f"{order.request.side} {order.filled_quantity} @ {price} | "
+            f"{order.side} {order.filled_quantity} @ {price} | "
             f"kline={kline.open_time.strftime('%H:%M')} | "
             f"high={kline.high:.4f} | "
             f"low={kline.low:.4f}"

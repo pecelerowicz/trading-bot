@@ -136,8 +136,8 @@ class PortfolioReconciliationReporter:
         return [
             (
                 f"        #{order.order_id:<5}"
-                f"{order.request.side:<5}"
-                f"{order.request.order_type:<9}"
+                f"{order.side:<5}"
+                f"{order.order_type:<9}"
                 f"status={order.status:<18}"
                 f"filled={order.filled_quantity:<14}"
                 f"avg_price={order.average_fill_price}"

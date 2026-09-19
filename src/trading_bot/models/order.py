@@ -18,7 +18,10 @@ OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED
 @dataclass(frozen=True)
 class Order:
     order_id: str
-    request: OrderRequest
+    side: OrderSide
+    order_type: OrderType
+    quantity: Decimal
+    price: Decimal | None
     status: OrderStatus
     filled_quantity: Decimal = Decimal("0.0")
     average_fill_price: Decimal | None = None

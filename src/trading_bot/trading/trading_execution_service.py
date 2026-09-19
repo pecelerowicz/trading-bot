@@ -106,13 +106,13 @@ class TradingExecutionService:
         for order_request in order_requests:
             result = await self.executor.place_order(order_request=order_request)
             order = self._get_placed_order(result=result, order_request=order_request)
-            self._validate_placed_order(order)
+            self._validate_placed_order(order=order, order_request=order_request)
             orders.append(order)
 
         self.logger.placed_orders(orders)
 
         for order in orders:
-            if order.status == "FILLED" and order.request.order_type == "MARKET":
+            if order.status == "FILLED" and order.order_type == "MARKET":
                 self.logger.fill_market_order(order, kline)
 
         return orders
@@ -139,8 +139,10 @@ class TradingExecutionService:
 
         return result.value
 
-    def _validate_placed_order(self, order: Order) -> None:
-        if order.request.order_type == "MARKET":
+    def _validate_placed_order(self, order: Order, order_request: OrderRequest) -> None:
+        self._validate_order_matches_request(order=order, order_request=order_request)
+
+        if order.order_type == "MARKET":
             if order.status == "REJECTED":
                 raise MarketOrderNotAcceptedError(
                     f"Market order #{order.order_id} was not accepted: "
@@ -155,7 +157,7 @@ class TradingExecutionService:
 
             return
 
-        if order.request.order_type == "LIMIT":
+        if order.order_type == "LIMIT":
             if order.status == "REJECTED":
                 raise LimitOrderNotAcceptedError(
                     f"Limit order #{order.order_id} was not accepted: "
@@ -170,7 +172,32 @@ class TradingExecutionService:
 
             return
 
-        raise ValueError(f"Unsupported order type: {order.request.order_type}")
+        raise ValueError(f"Unsupported order type: {order.order_type}")
+
+    def _validate_order_matches_request(self, order: Order, order_request: OrderRequest) -> None:
+        if order.side != order_request.side:
+            raise InvalidExecutorResponseError(
+                f"Placed order side does not match request: "
+                f"expected={order_request.side}, actual={order.side}"
+            )
+
+        if order.order_type != order_request.order_type:
+            raise InvalidExecutorResponseError(
+                f"Placed order type does not match request: "
+                f"expected={order_request.order_type}, actual={order.order_type}"
+            )
+
+        if order.quantity != order_request.quantity:
+            raise InvalidExecutorResponseError(
+                f"Placed order quantity does not match request: "
+                f"expected={order_request.quantity}, actual={order.quantity}"
+            )
+
+        if order_request.order_type == "LIMIT" and order.price != order_request.price:
+            raise InvalidExecutorResponseError(
+                f"Placed order price does not match request: "
+                f"expected={order_request.price}, actual={order.price}"
+            )
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> None:
         canceled_orders: list[Order] = []

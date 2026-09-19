@@ -8,7 +8,7 @@ from binance.exceptions import BinanceAPIException, BinanceRequestException
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.models.order import Order, OrderRequest, OrderStatus
+from trading_bot.models.order import Order, OrderRequest, OrderStatus, OrderType
 from trading_bot.ports.executor import ExecutorResult, ExecutorResultStatus
 
 
@@ -45,7 +45,7 @@ class BinanceExecutor:
 
         return ExecutorResult(
             status=ExecutorResultStatus.SUCCESS,
-            value=self._map_order(raw_order=raw_order, order_request=order_request),
+            value=self._map_order(raw_order),
         )
 
     async def get_order(self, order_id: str) -> ExecutorResult[Order]:
@@ -61,10 +61,7 @@ class BinanceExecutor:
 
         return ExecutorResult(
             status=ExecutorResultStatus.SUCCESS,
-            value=self._map_order(
-                raw_order=raw_order,
-                order_request=self._map_order_request(raw_order),
-            ),
+            value=self._map_order(raw_order),
         )
 
     async def cancel_order(self, order_id: str) -> ExecutorResult[Order]:
@@ -80,10 +77,7 @@ class BinanceExecutor:
 
         return ExecutorResult(
             status=ExecutorResultStatus.SUCCESS,
-            value=self._map_order(
-                raw_order=raw_order,
-                order_request=self._map_order_request(raw_order),
-            ),
+            value=self._map_order(raw_order),
         )
 
     async def get_account_snapshot(self) -> AccountSnapshot:
@@ -96,7 +90,8 @@ class BinanceExecutor:
             )
         )
 
-    def _map_order(self, raw_order: dict[str, Any], order_request: OrderRequest) -> Order:
+    def _map_order(self, raw_order: dict[str, Any]) -> Order:
+        order_type = self._map_order_type(raw_order["type"])
         filled_quantity = Decimal(raw_order.get("executedQty", "0"))
         filled_quote_quantity = Decimal(raw_order.get("cummulativeQuoteQty", "0"))
 
@@ -104,9 +99,16 @@ class BinanceExecutor:
         if filled_quantity > Decimal("0"):
             average_fill_price = filled_quote_quantity / filled_quantity
 
+        price = None
+        if order_type == "LIMIT":
+            price = Decimal(raw_order["price"])
+
         return Order(
             order_id=str(raw_order["orderId"]),
-            request=order_request,
+            side=raw_order["side"],
+            order_type=order_type,
+            quantity=Decimal(raw_order["origQty"]),
+            price=price,
             status=self._map_order_status(
                 status=raw_order["status"],
                 filled_quantity=filled_quantity,
@@ -115,22 +117,11 @@ class BinanceExecutor:
             average_fill_price=average_fill_price,
         )
 
-    def _map_order_request(self, raw_order: dict[str, Any]) -> OrderRequest:
-        order_type = raw_order["type"]
-
+    def _map_order_type(self, order_type: str) -> OrderType:
         if order_type not in {"MARKET", "LIMIT"}:
             raise ValueError(f"Unsupported Binance order type: {order_type}")
 
-        price = None
-        if order_type == "LIMIT":
-            price = Decimal(raw_order["price"])
-
-        return OrderRequest(
-            side=raw_order["side"],
-            order_type=order_type,
-            quantity=Decimal(raw_order["origQty"]),
-            price=price,
-        )
+        return order_type
 
     def _map_order_status(self, status: str, filled_quantity: Decimal) -> OrderStatus:
         status_mapping: dict[str, OrderStatus] = {
