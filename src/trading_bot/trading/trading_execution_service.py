@@ -2,13 +2,17 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.campaign import Campaign, CampaignView
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
-from trading_bot.ports.executor import Executor
+from trading_bot.ports.executor import Executor, ExecutorResult, ExecutorResultStatus
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.errors import (
+    InvalidExecutorResponseError,
     LimitOrderNotAcceptedError,
     MarketOrderNotAcceptedError,
     MarketOrderNotFullyFilledError,
     OrderCancellationNotCompletedError,
+    OrderCancellationOutcomeUnknownError,
+    OrderPlacementOutcomeUnknownError,
+    OrderSynchronizationError,
     StrategySignalConflictError, UnexpectedOrderStateError,
 )
 
@@ -74,16 +78,34 @@ class TradingExecutionService:
         orders: list[Order] = []
 
         for order_id in campaign.order_ids:
-            order = await self.executor.get_order(order_id)
+            result = await self.executor.get_order(order_id)
+            order = self._get_synchronized_order(result=result, order_id=order_id)
             orders.append(order)
 
         return tuple(orders)
+
+    def _get_synchronized_order(self, result: ExecutorResult[Order], order_id: str) -> Order:
+        if result.status == ExecutorResultStatus.UNKNOWN:
+            raise OrderSynchronizationError(
+                result.message or f"Could not determine state of order #{order_id}"
+            )
+
+        if result.status == ExecutorResultStatus.FAILED:
+            raise OrderSynchronizationError(
+                result.message or f"Could not retrieve order #{order_id}"
+            )
+
+        if result.value is None:
+            raise InvalidExecutorResponseError("Successful get_order result contains no order")
+
+        return result.value
 
     async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
         orders: list[Order] = []
 
         for order_request in order_requests:
-            order = await self.executor.place_order(order_request=order_request)
+            result = await self.executor.place_order(order_request=order_request)
+            order = self._get_placed_order(result=result, order_request=order_request)
             self._validate_placed_order(order)
             orders.append(order)
 
@@ -94,6 +116,28 @@ class TradingExecutionService:
                 self.logger.fill_market_order(order, kline)
 
         return orders
+
+    def _get_placed_order(self, result: ExecutorResult[Order], order_request: OrderRequest) -> Order:
+        if result.status == ExecutorResultStatus.UNKNOWN:
+            raise OrderPlacementOutcomeUnknownError(
+                result.message or "Order placement outcome is unknown"
+            )
+
+        if result.status == ExecutorResultStatus.FAILED:
+            message = result.message or "Order was not accepted"
+
+            if order_request.order_type == "MARKET":
+                raise MarketOrderNotAcceptedError(message)
+
+            if order_request.order_type == "LIMIT":
+                raise LimitOrderNotAcceptedError(message)
+
+            raise ValueError(f"Unsupported order type: {order_request.order_type}")
+
+        if result.value is None:
+            raise InvalidExecutorResponseError("Successful place_order result contains no order")
+
+        return result.value
 
     def _validate_placed_order(self, order: Order) -> None:
         if order.request.order_type == "MARKET":
@@ -136,7 +180,8 @@ class TradingExecutionService:
                 continue
 
             previous_status = order.status
-            canceled_order = await self.executor.cancel_order(order)
+            result = await self.executor.cancel_order(order.order_id)
+            canceled_order = self._get_canceled_order(result=result, order_id=order.order_id)
 
             if canceled_order.filled_quantity != order.filled_quantity:
                 raise StrategySignalConflictError(
@@ -155,3 +200,19 @@ class TradingExecutionService:
                 canceled_orders.append(canceled_order)
 
         self.logger.canceled_orders(canceled_orders)
+
+    def _get_canceled_order(self, result: ExecutorResult[Order], order_id: str) -> Order:
+        if result.status == ExecutorResultStatus.UNKNOWN:
+            raise OrderCancellationOutcomeUnknownError(
+                result.message or f"Cancellation outcome for order #{order_id} is unknown"
+            )
+
+        if result.status == ExecutorResultStatus.FAILED:
+            raise OrderCancellationNotCompletedError(
+                result.message or f"Order #{order_id} was not canceled"
+            )
+
+        if result.value is None:
+            raise InvalidExecutorResponseError("Successful cancel_order result contains no order")
+
+        return result.value

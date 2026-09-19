@@ -1,12 +1,15 @@
+import asyncio
 from decimal import Decimal
 from typing import Any
 
 from binance import AsyncClient
+from binance.exceptions import BinanceAPIException, BinanceRequestException
 
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest, OrderStatus
+from trading_bot.ports.executor import ExecutorResult, ExecutorResultStatus
 
 
 class BinanceExecutor:
@@ -17,7 +20,7 @@ class BinanceExecutor:
     async def update_executor(self, kline: KlineEvent) -> None:
         pass
 
-    async def place_order(self, order_request: OrderRequest) -> Order:
+    async def place_order(self, order_request: OrderRequest) -> ExecutorResult[Order]:
         order_parameters = {
             "symbol": self._instrument.symbol,
             "side": order_request.side,
@@ -33,28 +36,55 @@ class BinanceExecutor:
             order_parameters["timeInForce"] = "GTC"
             order_parameters["price"] = str(order_request.price)
 
-        raw_order = await self._client.create_order(**order_parameters)
+        try:
+            raw_order = await self._client.create_order(**order_parameters)
+        except BinanceAPIException as error:
+            return self._map_api_error(error)
+        except (BinanceRequestException, asyncio.TimeoutError) as error:
+            return ExecutorResult(status=ExecutorResultStatus.UNKNOWN, message=str(error))
 
-        return self._map_order(raw_order=raw_order, order_request=order_request)
-
-    async def get_order(self, order_id: str) -> Order:
-        raw_order = await self._client.get_order(
-            symbol=self._instrument.symbol,
-            orderId=int(order_id),
+        return ExecutorResult(
+            status=ExecutorResultStatus.SUCCESS,
+            value=self._map_order(raw_order=raw_order, order_request=order_request),
         )
 
-        return self._map_order(
-            raw_order=raw_order,
-            order_request=self._map_order_request(raw_order),
+    async def get_order(self, order_id: str) -> ExecutorResult[Order]:
+        try:
+            raw_order = await self._client.get_order(
+                symbol=self._instrument.symbol,
+                orderId=int(order_id),
+            )
+        except BinanceAPIException as error:
+            return self._map_api_error(error)
+        except (BinanceRequestException, asyncio.TimeoutError) as error:
+            return ExecutorResult(status=ExecutorResultStatus.UNKNOWN, message=str(error))
+
+        return ExecutorResult(
+            status=ExecutorResultStatus.SUCCESS,
+            value=self._map_order(
+                raw_order=raw_order,
+                order_request=self._map_order_request(raw_order),
+            ),
         )
 
-    async def cancel_order(self, order: Order) -> Order:
-        raw_order = await self._client.cancel_order(
-            symbol=self._instrument.symbol,
-            orderId=int(order.order_id),
-        )
+    async def cancel_order(self, order_id: str) -> ExecutorResult[Order]:
+        try:
+            raw_order = await self._client.cancel_order(
+                symbol=self._instrument.symbol,
+                orderId=int(order_id),
+            )
+        except BinanceAPIException as error:
+            return self._map_api_error(error)
+        except (BinanceRequestException, asyncio.TimeoutError) as error:
+            return ExecutorResult(status=ExecutorResultStatus.UNKNOWN, message=str(error))
 
-        return self._map_order(raw_order=raw_order, order_request=order.request)
+        return ExecutorResult(
+            status=ExecutorResultStatus.SUCCESS,
+            value=self._map_order(
+                raw_order=raw_order,
+                order_request=self._map_order_request(raw_order),
+            ),
+        )
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         raw_account = await self._client.get_account()
@@ -123,6 +153,12 @@ class BinanceExecutor:
             return "NEW"
 
         raise ValueError(f"Unsupported Binance order status: {status}")
+
+    def _map_api_error(self, error: BinanceAPIException) -> ExecutorResult[Order]:
+        if error.code in {-1006, -1007} or error.status_code >= 500:
+            return ExecutorResult(status=ExecutorResultStatus.UNKNOWN, message=str(error))
+
+        return ExecutorResult(status=ExecutorResultStatus.FAILED, message=str(error))
 
     def _get_asset_balance(self, raw_account: dict[str, Any], asset: str) -> AssetBalance:
         for raw_balance in raw_account.get("balances", []):

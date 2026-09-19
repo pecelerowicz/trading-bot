@@ -6,6 +6,7 @@ from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.models.order import Order, OrderRequest
+from trading_bot.ports.executor import ExecutorResult, ExecutorResultStatus
 
 
 # TODO: Extract account settlement if fees, partial fills, or multiple instruments make this class grow further.
@@ -241,75 +242,74 @@ class PaperExecutor:
 
         self._print_balances()
 
-    async def place_order(self, order_request: OrderRequest) -> Order:
-        order_id = str(self._next_order_id)
-        self._next_order_id += 1
-
+    async def place_order(self, order_request: OrderRequest) -> ExecutorResult[Order]:
         if order_request.quantity <= 0:
-            order = Order(
-                order_id=order_id,
-                request=order_request,
-                status="REJECTED",
-                filled_quantity=Decimal("0.0"),
-                average_fill_price=None,
+            return ExecutorResult(
+                status=ExecutorResultStatus.FAILED,
+                message="Order quantity must be positive",
             )
 
-        elif order_request.order_type == "MARKET":
+        if order_request.order_type == "MARKET":
             execution_price = self._get_current_kline().close
             was_filled = self._try_settle_market_order(order_request, execution_price)
 
-            if was_filled:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="FILLED",
-                    filled_quantity=order_request.quantity,
-                    average_fill_price=execution_price,
+            if not was_filled:
+                return ExecutorResult(
+                    status=ExecutorResultStatus.FAILED,
+                    message="Insufficient balance for market order",
                 )
-            else:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="REJECTED",
-                    filled_quantity=Decimal("0.0"),
-                    average_fill_price=None,
-                )
+
+            order = Order(
+                order_id=str(self._next_order_id),
+                request=order_request,
+                status="FILLED",
+                filled_quantity=order_request.quantity,
+                average_fill_price=execution_price,
+            )
 
         elif order_request.order_type == "LIMIT":
             was_accepted = self._try_reserve_limit_order(order_request)
 
-            if was_accepted:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="NEW",
-                    filled_quantity=Decimal("0.0"),
-                    average_fill_price=None,
+            if not was_accepted:
+                return ExecutorResult(
+                    status=ExecutorResultStatus.FAILED,
+                    message="Limit order was not accepted",
                 )
-            else:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="REJECTED",
-                    filled_quantity=Decimal("0.0"),
-                    average_fill_price=None,
-                )
+
+            order = Order(
+                order_id=str(self._next_order_id),
+                request=order_request,
+                status="NEW",
+                filled_quantity=Decimal("0.0"),
+                average_fill_price=None,
+            )
 
         else:
             raise ValueError(f"Unsupported order type: {order_request.order_type}")
 
-        self._orders_by_id[order_id] = order
-        return order
+        self._next_order_id += 1
+        self._orders_by_id[order.order_id] = order
 
-    async def cancel_order(self, order: Order) -> Order:
+        return ExecutorResult(
+            status=ExecutorResultStatus.SUCCESS,
+            value=order,
+        )
+
+    async def cancel_order(self, order_id: str) -> ExecutorResult[Order]:
         try:
-            stored_order = self._orders_by_id[order.order_id]
-        except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order.order_id}") from error
+            stored_order = self._orders_by_id[order_id]
+        except KeyError:
+            return ExecutorResult(
+                status=ExecutorResultStatus.FAILED,
+                message=f"Unknown paper order: {order_id}",
+            )
 
         # TODO: Release only the unfilled reservation when partial fills are supported.
         if stored_order.status != "NEW":
-            return stored_order
+            return ExecutorResult(
+                status=ExecutorResultStatus.SUCCESS,
+                value=stored_order,
+            )
 
         if stored_order.request.order_type == "LIMIT":
             self._release_limit_order(stored_order)
@@ -319,14 +319,26 @@ class PaperExecutor:
             status="CANCELED",
         )
 
-        self._orders_by_id[order.order_id] = updated_order
-        return updated_order
+        self._orders_by_id[order_id] = updated_order
 
-    async def get_order(self, order_id: str) -> Order:
+        return ExecutorResult(
+            status=ExecutorResultStatus.SUCCESS,
+            value=updated_order,
+        )
+
+    async def get_order(self, order_id: str) -> ExecutorResult[Order]:
         try:
-            return self._orders_by_id[order_id]
-        except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order_id}") from error
+            order = self._orders_by_id[order_id]
+        except KeyError:
+            return ExecutorResult(
+                status=ExecutorResultStatus.FAILED,
+                message=f"Unknown paper order: {order_id}",
+            )
+
+        return ExecutorResult(
+            status=ExecutorResultStatus.SUCCESS,
+            value=order,
+        )
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
