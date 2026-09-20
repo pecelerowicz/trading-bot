@@ -15,6 +15,7 @@ from trading_bot.trading.errors import (
     OrderSynchronizationError,
     StrategySignalConflictError, UnexpectedOrderStateError,
 )
+from trading_bot.trading.signal import CloseCampaign, OpenCampaign, SignalExecution
 
 
 class TradingExecutionService:
@@ -41,19 +42,41 @@ class TradingExecutionService:
             orders=orders,
         )
 
-    async def open_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+    async def open_campaign(self, campaign: Campaign, signal: OpenCampaign, kline: KlineEvent) -> None:
         self.logger.campaign("Opening campaign")
 
-        orders = await self._place_orders(order_requests=order_requests, kline=kline)
-        campaign.order_ids = [order.order_id for order in orders]
+        campaign.signals.append(signal)
+        signal_execution = SignalExecution()
+        campaign.signal_executions.append(signal_execution)
+
+        orders: list[Order] = []
+
+        for order_request in signal.order_requests:
+            result = await self.executor.place_order(order_request=order_request)
+            signal_execution.order_results.append(result)
+
+            order = self._get_placed_order(result=result, order_request=order_request)
+            self._validate_placed_order(order=order, order_request=order_request)
+            orders.append(order)
+
+        self.logger.placed_orders(orders)
+
+        for order in orders:
+            if order.status == "FILLED" and order.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
+
         campaign.mark_open()
 
         self.logger.campaign("Opened campaign")
 
-    async def close_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+    async def close_campaign(self, campaign: Campaign, signal: CloseCampaign, kline: KlineEvent) -> None:
         self.logger.campaign("Closing campaign")
 
         campaign.begin_closing()
+
+        campaign.signals.append(signal)
+        signal_execution = SignalExecution()
+        campaign.signal_executions.append(signal_execution)
 
         orders = await self._get_orders(campaign)
 
@@ -66,8 +89,22 @@ class TradingExecutionService:
         await self._cancel_orders(orders=list(orders), order_ids_to_cancel=pending_order_ids)
         self.logger.campaign(f"Orders canceled: {len(pending_order_ids)}")
 
-        close_orders = await self._place_orders(order_requests=order_requests, kline=kline)
-        campaign.order_ids.extend([order.order_id for order in close_orders])
+        close_orders: list[Order] = []
+
+        for order_request in signal.order_requests:
+            result = await self.executor.place_order(order_request=order_request)
+            signal_execution.order_results.append(result)
+
+            order = self._get_placed_order(result=result, order_request=order_request)
+            self._validate_placed_order(order=order, order_request=order_request)
+            close_orders.append(order)
+
+        self.logger.placed_orders(close_orders)
+
+        for order in close_orders:
+            if order.status == "FILLED" and order.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
+
         self.logger.campaign(f"Close orders placed: {len(close_orders)}")
 
         campaign.mark_closed()
@@ -99,23 +136,6 @@ class TradingExecutionService:
             raise InvalidExecutorResponseError("Successful get_order result contains no order")
 
         return result.value
-
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
-        orders: list[Order] = []
-
-        for order_request in order_requests:
-            result = await self.executor.place_order(order_request=order_request)
-            order = self._get_placed_order(result=result, order_request=order_request)
-            self._validate_placed_order(order=order, order_request=order_request)
-            orders.append(order)
-
-        self.logger.placed_orders(orders)
-
-        for order in orders:
-            if order.status == "FILLED" and order.order_type == "MARKET":
-                self.logger.fill_market_order(order, kline)
-
-        return orders
 
     def _get_placed_order(self, result: ExecutorResult[Order], order_request: OrderRequest) -> Order:
         if result.status == ExecutorResultStatus.UNKNOWN:

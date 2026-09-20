@@ -3,6 +3,7 @@ from decimal import Decimal
 from enum import Enum
 
 from trading_bot.models.order import Order
+from trading_bot.trading.signal import SignalExecution, StrategySignal
 
 
 class CampaignState(Enum):
@@ -36,7 +37,8 @@ class CampaignExecutionSummary:
 
 @dataclass
 class Campaign:
-    order_ids: list[str] = field(default_factory=list)
+    signals: list[StrategySignal] = field(default_factory=list)
+    signal_executions: list[SignalExecution] = field(default_factory=list)
     _state: CampaignState = field(default=CampaignState.OPENING, init=False, repr=False)
     _health: CampaignHealth = field(default=CampaignHealth.NORMAL, init=False, repr=False)
 
@@ -47,6 +49,15 @@ class Campaign:
     @property
     def health(self) -> CampaignHealth:
         return self._health
+
+    @property
+    def order_ids(self) -> list[str]:
+        return [
+            result.value.order_id
+            for signal_execution in self.signal_executions
+            for result in signal_execution.order_results
+            if result.value is not None
+        ]
 
     @property
     def is_open(self) -> bool:

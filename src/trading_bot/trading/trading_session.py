@@ -77,7 +77,7 @@ class TradingSession:
             campaign_number=len(self.campaigns),
         )
 
-        await self.execution_service.open_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
+        await self.execution_service.open_campaign(campaign=campaign, signal=signal, kline=kline)
 
     async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
         campaign = self.current_campaign
@@ -86,7 +86,7 @@ class TradingSession:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
-        await self.execution_service.close_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
+        await self.execution_service.close_campaign(campaign=campaign, signal=signal, kline=kline)
 
         campaign_view = await self.execution_service.get_campaign_view(campaign)
 

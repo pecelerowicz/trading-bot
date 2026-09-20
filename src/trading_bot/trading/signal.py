@@ -1,7 +1,7 @@
-from dataclasses import dataclass
-from typing import TypeAlias
+from dataclasses import dataclass, field
 
-from trading_bot.models.order import OrderRequest
+from trading_bot.models.order import Order, OrderRequest
+from trading_bot.ports.executor import ExecutorResult
 
 
 @dataclass(frozen=True)
@@ -23,4 +23,9 @@ class NoAction:
     pass
 
 
-StrategySignal: TypeAlias = OpenCampaign | CloseCampaign | NoAction
+StrategySignal = OpenCampaign | CloseCampaign | NoAction
+
+
+@dataclass
+class SignalExecution:
+    order_results: list[ExecutorResult[Order]] = field(default_factory=list)
