@@ -5,8 +5,6 @@ from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.errors import (
-    LimitOrderNotAcceptedError,
-    MarketOrderNotAcceptedError,
     MarketOrderNotFullyFilledError,
     OrderCancellationNotCompletedError,
     StrategySignalConflictError, UnexpectedOrderStateError,
@@ -91,12 +89,6 @@ class TradingExecutionService:
 
     def _validate_placed_order(self, order: Order) -> None:
         if order.request.order_type == "MARKET":
-            if order.status == "REJECTED":
-                raise MarketOrderNotAcceptedError(
-                    f"Market order #{order.order_id} was not accepted: "
-                    f"status={order.status}"
-                )
-
             if order.status != "FILLED":
                 raise MarketOrderNotFullyFilledError(
                     f"Market order #{order.order_id} was not fully filled: "
@@ -106,12 +98,6 @@ class TradingExecutionService:
             return
 
         if order.request.order_type == "LIMIT":
-            if order.status == "REJECTED":
-                raise LimitOrderNotAcceptedError(
-                    f"Limit order #{order.order_id} was not accepted: "
-                    f"status={order.status}"
-                )
-
             if order.status not in {"NEW", "PARTIALLY_FILLED", "FILLED"}:
                 raise UnexpectedOrderStateError(
                     f"Limit order #{order.order_id} returned an unexpected state "

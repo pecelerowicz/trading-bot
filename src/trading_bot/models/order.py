@@ -13,7 +13,7 @@ class OrderRequest:
     price: Decimal | None = None
 
 
-OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "REJECTED"]
+OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED"]
 
 @dataclass(frozen=True)
 class Order:

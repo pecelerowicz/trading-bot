@@ -1,12 +1,15 @@
+import asyncio
 from decimal import Decimal
 from typing import Any
 
 from binance import AsyncClient
+from binance.exceptions import BinanceAPIException, BinanceRequestException
 
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest, OrderStatus
+from trading_bot.ports.executor import OrderPlacementOutcomeUnknownError, OrderRejectedError
 
 
 class BinanceExecutor:
@@ -33,7 +36,18 @@ class BinanceExecutor:
             order_parameters["timeInForce"] = "GTC"
             order_parameters["price"] = str(order_request.price)
 
-        raw_order = await self._client.create_order(**order_parameters)
+        try:
+            raw_order = await self._client.create_order(**order_parameters)
+        except BinanceAPIException as error:
+            if error.code in {-1006, -1007} or error.status_code >= 500:
+                raise OrderPlacementOutcomeUnknownError(str(error)) from error
+
+            raise OrderRejectedError(str(error)) from error
+        except (BinanceRequestException, asyncio.TimeoutError) as error:
+            raise OrderPlacementOutcomeUnknownError(str(error)) from error
+
+        if raw_order["status"] == "REJECTED":
+            raise OrderRejectedError("Binance rejected the order")
 
         return self._map_order(raw_order=raw_order, order_request=order_request)
 
@@ -108,7 +122,6 @@ class BinanceExecutor:
             "PARTIALLY_FILLED": "PARTIALLY_FILLED",
             "FILLED": "FILLED",
             "CANCELED": "CANCELED",
-            "REJECTED": "REJECTED",
             "EXPIRED": "CANCELED",
             "EXPIRED_IN_MATCH": "CANCELED",
         }
