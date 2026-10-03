@@ -46,21 +46,15 @@ class TradingExecutionService:
 
         self.logger.campaign("Opened campaign")
 
-    async def close_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
+    async def close_campaign(self, campaign: Campaign, order_ids_to_cancel: list[str], order_requests: list[OrderRequest], kline: KlineEvent) -> None:
         self.logger.campaign("Closing campaign")
 
         campaign.begin_closing()
 
         orders = await self._get_orders(campaign)
 
-        pending_order_ids = [
-            order.order_id
-            for order in orders
-            if order.status in {"NEW", "PARTIALLY_FILLED"}
-        ]
-
-        await self._cancel_orders(orders=list(orders), order_ids_to_cancel=pending_order_ids)
-        self.logger.campaign(f"Orders canceled: {len(pending_order_ids)}")
+        await self._cancel_orders(orders=list(orders), order_ids_to_cancel=order_ids_to_cancel)
+        self.logger.campaign(f"Orders canceled: {len(order_ids_to_cancel)}")
 
         close_orders = await self._place_orders(order_requests=order_requests, kline=kline)
         campaign.order_ids.extend([order.order_id for order in close_orders])
