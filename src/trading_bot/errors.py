@@ -1,3 +1,15 @@
+class InvalidOrderRequestError(ValueError):
+    pass
+
+
+class OrderRejectedError(Exception):
+    pass
+
+
+class OrderPlacementOutcomeUnknownError(Exception):
+    pass
+
+
 class UnexpectedOrderStateError(RuntimeError):
     pass
 

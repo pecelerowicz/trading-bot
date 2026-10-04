@@ -4,15 +4,6 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 
-
-class OrderRejectedError(Exception):
-    pass
-
-
-class OrderPlacementOutcomeUnknownError(Exception):
-    pass
-
-
 class Executor(Protocol):
     # TODO: Revisit whether update_executor belongs in the common port after BinanceExecutor is implemented.
     async def update_executor(self, kline: KlineEvent) -> None:
@@ -29,7 +20,7 @@ class Executor(Protocol):
             OrderRejectedError:
                 If the order is definitively rejected and no order is created.
             OrderPlacementOutcomeUnknownError:
-                If it cannot be determined whether the order was created.
+                If the order request was sent, but it cannot be determined whether the order was created.
         """
         ...
 

@@ -5,11 +5,11 @@ from typing import Any
 from binance import AsyncClient
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
+from trading_bot.errors import OrderPlacementOutcomeUnknownError, OrderRejectedError
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest, OrderStatus
-from trading_bot.ports.executor import OrderPlacementOutcomeUnknownError, OrderRejectedError
 
 
 class BinanceExecutor:
@@ -21,20 +21,7 @@ class BinanceExecutor:
         pass
 
     async def place_order(self, order_request: OrderRequest) -> Order:
-        order_parameters = {
-            "symbol": self._instrument.symbol,
-            "side": order_request.side,
-            "type": order_request.order_type,
-            "quantity": str(order_request.quantity),
-            "newOrderRespType": "RESULT",
-        }
-
-        if order_request.order_type == "LIMIT":
-            if order_request.price is None:
-                raise ValueError("Limit order requires a price")
-
-            order_parameters["timeInForce"] = "GTC"
-            order_parameters["price"] = str(order_request.price)
+        order_parameters = self._build_order_parameters(order_request)
 
         try:
             raw_order = await self._client.create_order(**order_parameters)
@@ -50,6 +37,21 @@ class BinanceExecutor:
             raise OrderRejectedError("Binance rejected the order")
 
         return self._map_order(raw_order=raw_order, order_request=order_request)
+
+    def _build_order_parameters(self, order_request: OrderRequest) -> dict[str, Any]:
+        order_parameters: dict[str, Any] = {
+            "symbol": self._instrument.symbol,
+            "side": order_request.side,
+            "type": order_request.order_type,
+            "quantity": str(order_request.quantity),
+            "newOrderRespType": "RESULT",
+        }
+
+        if order_request.order_type == "LIMIT":
+            order_parameters["timeInForce"] = "GTC"
+            order_parameters["price"] = str(order_request.price)
+
+        return order_parameters
 
     async def get_order(self, order_id: str) -> Order:
         raw_order = await self._client.get_order(

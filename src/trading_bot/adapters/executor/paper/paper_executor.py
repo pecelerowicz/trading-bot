@@ -1,12 +1,12 @@
 from dataclasses import replace
 from decimal import Decimal
 
+from trading_bot.errors import OrderRejectedError
 from trading_bot.models.account import AssetBalance, AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.models.order import Order, OrderRequest
-from trading_bot.ports.executor import OrderRejectedError
 
 
 # TODO: Extract account settlement if fees, partial fills, or multiple instruments make this class grow further.
@@ -89,8 +89,8 @@ class PaperExecutor:
         return True
 
     def _try_reserve_limit_order(self, order_request: OrderRequest) -> bool:
-        if order_request.price is None or order_request.price <= 0:
-            return False
+        if order_request.price is None:
+            raise RuntimeError("Limit order request has no price")
 
         base_asset = self._instrument.base_asset
         quote_asset = self._instrument.quote_asset
@@ -243,9 +243,6 @@ class PaperExecutor:
         self._print_balances()
 
     async def place_order(self, order_request: OrderRequest) -> Order:
-        if order_request.quantity <= 0:
-            raise OrderRejectedError("Order quantity must be positive")
-
         if order_request.order_type == "MARKET":
             execution_price = self._get_current_kline().close
             was_filled = self._try_settle_market_order(order_request, execution_price)
