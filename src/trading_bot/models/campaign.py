@@ -128,11 +128,11 @@ class CampaignView:
             base_quantity = order.filled_quantity
             quote_value = order.filled_quantity * order.average_fill_price
 
-            if order.request.side == "BUY":
+            if order.side == "BUY":
                 bought_base += base_quantity
                 spent_quote += quote_value
 
-            elif order.request.side == "SELL":
+            elif order.side == "SELL":
                 sold_base += base_quantity
                 received_quote += quote_value
 

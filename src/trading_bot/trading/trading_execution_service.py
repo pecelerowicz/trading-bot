@@ -82,13 +82,13 @@ class TradingExecutionService:
         self.logger.placed_orders(orders)
 
         for order in orders:
-            if order.status == "FILLED" and order.request.order_type == "MARKET":
+            if order.status == "FILLED" and order.order_type == "MARKET":
                 self.logger.fill_market_order(order, kline)
 
         return orders
 
     def _validate_placed_order(self, order: Order) -> None:
-        if order.request.order_type == "MARKET":
+        if order.order_type == "MARKET":
             if order.status != "FILLED":
                 raise MarketOrderNotFullyFilledError(
                     f"Market order #{order.order_id} was not fully filled: "
@@ -97,7 +97,7 @@ class TradingExecutionService:
 
             return
 
-        if order.request.order_type == "LIMIT":
+        if order.order_type == "LIMIT":
             if order.status not in {"NEW", "PARTIALLY_FILLED", "FILLED"}:
                 raise UnexpectedOrderStateError(
                     f"Limit order #{order.order_id} returned an unexpected state "
@@ -106,7 +106,7 @@ class TradingExecutionService:
 
             return
 
-        raise ValueError(f"Unsupported order type: {order.request.order_type}")
+        raise ValueError(f"Unsupported order type: {order.order_type}")
 
     async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> None:
         canceled_orders: list[Order] = []

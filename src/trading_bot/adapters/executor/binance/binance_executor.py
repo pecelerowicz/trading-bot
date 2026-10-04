@@ -36,7 +36,7 @@ class BinanceExecutor:
         if raw_order["status"] == "REJECTED":
             raise OrderRejectedError("Binance rejected the order")
 
-        return self._map_order(raw_order=raw_order, order_request=order_request)
+        return self._map_order(raw_order=raw_order)
 
     def _build_order_parameters(self, order_request: OrderRequest) -> dict[str, Any]:
         order_parameters: dict[str, Any] = {
@@ -59,10 +59,7 @@ class BinanceExecutor:
             orderId=int(order_id),
         )
 
-        return self._map_order(
-            raw_order=raw_order,
-            order_request=self._map_order_request(raw_order),
-        )
+        return self._map_order(raw_order=raw_order)
 
     async def cancel_order(self, order: Order) -> Order:
         raw_order = await self._client.cancel_order(
@@ -70,7 +67,7 @@ class BinanceExecutor:
             orderId=int(order.order_id),
         )
 
-        return self._map_order(raw_order=raw_order, order_request=order.request)
+        return self._map_order(raw_order=raw_order)
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         raw_account = await self._client.get_account()
@@ -82,7 +79,7 @@ class BinanceExecutor:
             )
         )
 
-    def _map_order(self, raw_order: dict[str, Any], order_request: OrderRequest) -> Order:
+    def _map_order(self, raw_order: dict[str, Any]) -> Order:
         filled_quantity = Decimal(raw_order.get("executedQty", "0"))
         filled_quote_quantity = Decimal(raw_order.get("cummulativeQuoteQty", "0"))
 
@@ -90,18 +87,6 @@ class BinanceExecutor:
         if filled_quantity > Decimal("0"):
             average_fill_price = filled_quote_quantity / filled_quantity
 
-        return Order(
-            order_id=str(raw_order["orderId"]),
-            request=order_request,
-            status=self._map_order_status(
-                status=raw_order["status"],
-                filled_quantity=filled_quantity,
-            ),
-            filled_quantity=filled_quantity,
-            average_fill_price=average_fill_price,
-        )
-
-    def _map_order_request(self, raw_order: dict[str, Any]) -> OrderRequest:
         order_type = raw_order["type"]
 
         if order_type not in {"MARKET", "LIMIT"}:
@@ -111,11 +96,18 @@ class BinanceExecutor:
         if order_type == "LIMIT":
             price = Decimal(raw_order["price"])
 
-        return OrderRequest(
+        return Order(
+            order_id=str(raw_order["orderId"]),
             side=raw_order["side"],
             order_type=order_type,
             quantity=Decimal(raw_order["origQty"]),
             price=price,
+            status=self._map_order_status(
+                status=raw_order["status"],
+                filled_quantity=filled_quantity,
+            ),
+            filled_quantity=filled_quantity,
+            average_fill_price=average_fill_price,
         )
 
     def _map_order_status(self, status: str, filled_quantity: Decimal) -> OrderStatus:
