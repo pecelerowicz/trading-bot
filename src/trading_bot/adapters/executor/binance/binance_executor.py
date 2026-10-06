@@ -2,6 +2,7 @@ import asyncio
 from decimal import Decimal
 from typing import Any
 
+import aiohttp
 from binance import AsyncClient
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
@@ -37,13 +38,18 @@ class BinanceExecutor:
                 raise OrderPlacementOutcomeUnknownError(str(error)) from error
 
             raise OrderPlacementRejectedError(str(error)) from error
-        except (BinanceRequestException, asyncio.TimeoutError) as error:
+        except (BinanceRequestException, aiohttp.ClientError, asyncio.TimeoutError) as error:
             raise OrderPlacementOutcomeUnknownError(str(error)) from error
 
-        if raw_order["status"] == "REJECTED":
-            raise OrderPlacementRejectedError("Binance rejected the order")
+        try:
+            if raw_order["status"] == "REJECTED":
+                raise OrderPlacementRejectedError("Binance rejected the order")
 
-        return self._map_order(raw_order=raw_order)
+            return self._map_order(raw_order=raw_order)
+        except (KeyError, TypeError, ValueError, ArithmeticError) as error:
+            raise OrderPlacementOutcomeUnknownError(
+                "Invalid Binance response while placing order"
+            ) from error
 
     def _build_order_parameters(self, order_request: OrderRequest) -> dict[str, Any]:
         order_parameters: dict[str, Any] = {
@@ -75,45 +81,60 @@ class BinanceExecutor:
                 ) from error
 
             raise OrderRetrievalError(str(error)) from error
-        except (BinanceRequestException, asyncio.TimeoutError) as error:
+        except (BinanceRequestException, aiohttp.ClientError, asyncio.TimeoutError) as error:
             raise OrderRetrievalError(str(error)) from error
 
         try:
             return self._map_order(raw_order=raw_order)
         except (KeyError, TypeError, ValueError, ArithmeticError) as error:
-            raise OrderRetrievalError(f"Invalid Binance response for order {order_id}") from error
+            raise OrderRetrievalError(
+                f"Invalid Binance response for order {order_id}"
+            ) from error
 
     async def cancel_order(self, order_id: str) -> Order:
         binance_order_id = int(order_id)
 
         try:
-            raw_order = await self._client.cancel_order(symbol=self._instrument.symbol,orderId=binance_order_id)
+            raw_order = await self._client.cancel_order(
+                symbol=self._instrument.symbol,
+                orderId=binance_order_id,
+            )
         except BinanceAPIException as error:
             if error.code in {-1006, -1007} or error.status_code >= 500:
                 raise OrderCancellationOutcomeUnknownError(str(error)) from error
 
             raise OrderCancellationRejectedError(str(error)) from error
-        except (BinanceRequestException, asyncio.TimeoutError) as error:
+        except (BinanceRequestException, aiohttp.ClientError, asyncio.TimeoutError) as error:
             raise OrderCancellationOutcomeUnknownError(str(error)) from error
 
         try:
             return self._map_order(raw_order=raw_order)
         except (KeyError, TypeError, ValueError, ArithmeticError) as error:
-            raise OrderCancellationOutcomeUnknownError(f"Invalid Binance response while canceling order {order_id}") from error
+            raise OrderCancellationOutcomeUnknownError(
+                f"Invalid Binance response while canceling order {order_id}"
+            ) from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         raw_account = await self._client.get_account()
 
         return AccountSnapshot(
             balances=(
-                self._get_asset_balance(raw_account=raw_account, asset=self._instrument.base_asset),
-                self._get_asset_balance(raw_account=raw_account, asset=self._instrument.quote_asset),
+                self._get_asset_balance(
+                    raw_account=raw_account,
+                    asset=self._instrument.base_asset,
+                ),
+                self._get_asset_balance(
+                    raw_account=raw_account,
+                    asset=self._instrument.quote_asset,
+                ),
             )
         )
 
     def _map_order(self, raw_order: dict[str, Any]) -> Order:
         filled_quantity = Decimal(raw_order.get("executedQty", "0"))
-        filled_quote_quantity = Decimal(raw_order.get("cummulativeQuoteQty", "0"))
+        filled_quote_quantity = Decimal(
+            raw_order.get("cummulativeQuoteQty", "0")
+        )
 
         average_fill_price = None
         if filled_quantity > Decimal("0"):
@@ -142,7 +163,11 @@ class BinanceExecutor:
             average_fill_price=average_fill_price,
         )
 
-    def _map_order_status(self, status: str, filled_quantity: Decimal) -> OrderStatus:
+    def _map_order_status(
+        self,
+        status: str,
+        filled_quantity: Decimal,
+    ) -> OrderStatus:
         status_mapping: dict[str, OrderStatus] = {
             "NEW": "NEW",
             "PARTIALLY_FILLED": "PARTIALLY_FILLED",
@@ -163,7 +188,11 @@ class BinanceExecutor:
 
         raise ValueError(f"Unsupported Binance order status: {status}")
 
-    def _get_asset_balance(self, raw_account: dict[str, Any], asset: str) -> AssetBalance:
+    def _get_asset_balance(
+        self,
+        raw_account: dict[str, Any],
+        asset: str,
+    ) -> AssetBalance:
         for raw_balance in raw_account.get("balances", []):
             if raw_balance["asset"] != asset:
                 continue
