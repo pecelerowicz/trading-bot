@@ -40,6 +40,20 @@ class Executor(Protocol):
         ...
 
     async def cancel_order(self, order_id: str) -> Order:
+        """
+        Cancel an existing order.
+
+        Returns:
+            The order state reported after the cancellation attempt.
+
+        Raises:
+            OrderNotFoundError:
+                If the executor definitively determines that the order does not exist.
+            OrderCancellationRejectedError:
+                If the cancellation is definitively rejected.
+            OrderCancellationOutcomeUnknownError:
+                If it cannot be determined whether the order was canceled.
+        """
         ...
 
     async def get_account_snapshot(self) -> AccountSnapshot:

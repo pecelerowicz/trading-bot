@@ -6,6 +6,8 @@ from binance import AsyncClient
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
 from trading_bot.errors import (
+    OrderCancellationOutcomeUnknownError,
+    OrderCancellationRejectedError,
     OrderNotFoundError,
     OrderPlacementOutcomeUnknownError,
     OrderRejectedError,
@@ -62,10 +64,15 @@ class BinanceExecutor:
         binance_order_id = int(order_id)
 
         try:
-            raw_order = await self._client.get_order(symbol=self._instrument.symbol, orderId=binance_order_id)
+            raw_order = await self._client.get_order(
+                symbol=self._instrument.symbol,
+                orderId=binance_order_id,
+            )
         except BinanceAPIException as error:
             if error.code == -2013:
-                raise OrderNotFoundError(f"Order {order_id} was not found") from error
+                raise OrderNotFoundError(
+                    f"Order {order_id} was not found"
+                ) from error
 
             raise OrderRetrievalError(str(error)) from error
         except (BinanceRequestException, asyncio.TimeoutError) as error:
@@ -77,8 +84,22 @@ class BinanceExecutor:
             raise OrderRetrievalError(f"Invalid Binance response for order {order_id}") from error
 
     async def cancel_order(self, order_id: str) -> Order:
-        raw_order = await self._client.cancel_order(symbol=self._instrument.symbol, orderId=int(order_id))
-        return self._map_order(raw_order=raw_order)
+        binance_order_id = int(order_id)
+
+        try:
+            raw_order = await self._client.cancel_order(symbol=self._instrument.symbol,orderId=binance_order_id)
+        except BinanceAPIException as error:
+            if error.code in {-1006, -1007} or error.status_code >= 500:
+                raise OrderCancellationOutcomeUnknownError(str(error)) from error
+
+            raise OrderCancellationRejectedError(str(error)) from error
+        except (BinanceRequestException, asyncio.TimeoutError) as error:
+            raise OrderCancellationOutcomeUnknownError(str(error)) from error
+
+        try:
+            return self._map_order(raw_order=raw_order)
+        except (KeyError, TypeError, ValueError, ArithmeticError) as error:
+            raise OrderCancellationOutcomeUnknownError(f"Invalid Binance response while canceling order {order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         raw_account = await self._client.get_account()

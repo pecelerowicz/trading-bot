@@ -18,6 +18,14 @@ class OrderRetrievalError(Exception):
     pass
 
 
+class OrderCancellationRejectedError(Exception):
+    pass
+
+
+class OrderCancellationOutcomeUnknownError(Exception):
+    pass
+
+
 class UnexpectedOrderStateError(RuntimeError):
     pass
 

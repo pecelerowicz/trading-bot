@@ -1,7 +1,7 @@
 from dataclasses import replace
 from decimal import Decimal
 
-from trading_bot.errors import OrderNotFoundError, OrderRejectedError
+from trading_bot.errors import OrderCancellationRejectedError, OrderNotFoundError, OrderRejectedError
 from trading_bot.models.account import AssetBalance, AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
@@ -294,9 +294,7 @@ class PaperExecutor:
             return stored_order
 
         if stored_order.status == "PARTIALLY_FILLED":
-            raise RuntimeError(
-                f"PaperExecutor does not support canceling partially filled order #{order_id}"
-            )
+            raise OrderCancellationRejectedError(f"PaperExecutor does not support canceling partially filled order #{order_id}")
 
         if stored_order.order_type != "LIMIT":
             raise RuntimeError(
