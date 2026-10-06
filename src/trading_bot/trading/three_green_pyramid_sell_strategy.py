@@ -4,7 +4,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
-from trading_bot.trading.signal import OpenCampaign, CloseCampaign, NoAction, StrategySignal
+from trading_bot.trading.signal import SignalType, StrategySignal
 from trading_bot.models.campaign import CampaignView
 
 
@@ -19,7 +19,7 @@ class ThreeGreenPyramidSellStrategy:
         klines: list[KlineEvent],
         current_campaign: CampaignView | None,
         account_snapshot: AccountSnapshot
-    ) -> StrategySignal:
+    ) -> StrategySignal | None:
         if current_campaign is None:
             return self._on_no_campaign(kline=kline,
                                         klines=klines,
@@ -38,9 +38,9 @@ class ThreeGreenPyramidSellStrategy:
         kline: KlineEvent,
         klines: list[KlineEvent],
         account_snapshot: AccountSnapshot
-    ) -> OpenCampaign | NoAction:
+    ) -> StrategySignal | None:
         if len(klines) < 3:
-            return NoAction()
+            return None
 
         last_three = klines[-3:]
         is_three_consecutive_green = all(
@@ -48,7 +48,7 @@ class ThreeGreenPyramidSellStrategy:
         )
 
         if not is_three_consecutive_green:
-            return NoAction()
+            return None
 
         current_close = kline.close
         order_requests: list[OrderRequest] = []
@@ -73,9 +73,13 @@ class ThreeGreenPyramidSellStrategy:
         )
 
         if not account_snapshot.has_free_balance(self.instrument.base_asset, required_base):
-            return NoAction()
+            return None
 
-        return OpenCampaign(order_requests=order_requests)
+        return StrategySignal(
+            signal_type=SignalType.OPEN,
+            cancel_order_ids=[],
+            order_requests=order_requests,
+        )
 
     def _on_open_campaign(
         self,
@@ -83,7 +87,7 @@ class ThreeGreenPyramidSellStrategy:
         klines: list[KlineEvent],
         current_campaign: CampaignView,
         account_snapshot: AccountSnapshot
-    ) -> CloseCampaign | NoAction:
+    ) -> StrategySignal | None:
         if len(klines) >= 2:
             last_two = klines[-2:]
             is_two_consecutive_red = all(
@@ -102,7 +106,7 @@ class ThreeGreenPyramidSellStrategy:
                     required_quote = quantity_to_buy_back * kline.close
 
                     if not account_snapshot.has_free_balance(self.instrument.quote_asset, required_quote):
-                        return NoAction()
+                        return None
 
                     order_requests.append(
                         OrderRequest(
@@ -112,6 +116,16 @@ class ThreeGreenPyramidSellStrategy:
                         )
                     )
 
-                return CloseCampaign(order_requests=order_requests)
+                cancel_order_ids = [
+                    order.order_id
+                    for order in current_campaign.orders
+                    if order.status in {"NEW", "PARTIALLY_FILLED"}
+                ]
 
-        return NoAction()
+                return StrategySignal(
+                    signal_type=SignalType.CLOSE,
+                    cancel_order_ids=cancel_order_ids,
+                    order_requests=order_requests,
+                )
+
+        return None

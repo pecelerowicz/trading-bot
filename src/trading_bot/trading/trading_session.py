@@ -3,7 +3,7 @@ from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.campaign import Campaign, CampaignView
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
-from trading_bot.trading.signal import CloseCampaign, NoAction, OpenCampaign, StrategySignal
+from trading_bot.trading.signal import SignalType, StrategySignal
 from trading_bot.trading.strategy import Strategy
 from trading_bot.trading.trading_execution_service import TradingExecutionService
 
@@ -38,7 +38,7 @@ class TradingSession:
         signal = await self._get_strategy_signal(kline)
         await self._handle_signal(signal, kline)
 
-    async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal:
+    async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal | None:
         current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
         account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
 
@@ -47,23 +47,24 @@ class TradingSession:
                                       current_campaign=current_campaign_view,
                                       account_snapshot=account_snapshot)
 
-    async def _handle_signal(self, signal: StrategySignal, kline: KlineEvent) -> None:
-        self.logger.signal(type(signal).__name__)
+    async def _handle_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
+        if signal is None:
+            self.logger.signal("NoAction")
+            return
 
-        match signal:
-            case OpenCampaign():
+        self.logger.signal(signal.signal_type.value)
+
+        match signal.signal_type:
+            case SignalType.OPEN:
                 await self._open_campaign(signal, kline)
 
-            case CloseCampaign():
+            case SignalType.CLOSE:
                 await self._close_campaign(signal, kline)
 
-            case NoAction():
-                return
-
             case _:
-                raise TypeError(f"Unsupported strategy signal: {type(signal).__name__}")
+                raise TypeError(f"Unsupported strategy signal type: {signal.signal_type}")
 
-    async def _open_campaign(self, signal: OpenCampaign, kline: KlineEvent) -> None:
+    async def _open_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
         if self.current_campaign is not None:
             self.logger.campaign("Open signal ignored: current campaign already exists")
             return
@@ -79,14 +80,14 @@ class TradingSession:
 
         await self.execution_service.open_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
 
-    async def _close_campaign(self, signal: CloseCampaign, kline: KlineEvent) -> None:
+    async def _close_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
         campaign = self.current_campaign
 
         if campaign is None:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
-        await self.execution_service.close_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
+        await self.execution_service.close_campaign(campaign=campaign, order_ids_to_cancel=signal.cancel_order_ids, order_requests=signal.order_requests, kline=kline)
 
         campaign_view = await self.execution_service.get_campaign_view(campaign)
 

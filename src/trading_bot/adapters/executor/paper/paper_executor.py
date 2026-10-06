@@ -1,6 +1,7 @@
 from dataclasses import replace
 from decimal import Decimal
 
+from trading_bot.errors import OrderCancellationRejectedError, OrderNotFoundError, OrderPlacementRejectedError
 from trading_bot.models.account import AssetBalance, AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
@@ -88,8 +89,8 @@ class PaperExecutor:
         return True
 
     def _try_reserve_limit_order(self, order_request: OrderRequest) -> bool:
-        if order_request.price is None or order_request.price <= 0:
-            return False
+        if order_request.price is None:
+            raise RuntimeError("Limit order request has no price")
 
         base_asset = self._instrument.base_asset
         quote_asset = self._instrument.quote_asset
@@ -129,9 +130,7 @@ class PaperExecutor:
         raise ValueError(f"Unsupported order side: {order_request.side}")
 
     def _settle_limit_order(self, order: Order) -> None:
-        request = order.request
-
-        if request.price is None:
+        if order.price is None:
             raise RuntimeError(f"Limit order {order.order_id} has no price")
 
         base_asset = self._instrument.base_asset
@@ -140,10 +139,10 @@ class PaperExecutor:
         base_balance = self._balances_by_asset[base_asset]
         quote_balance = self._balances_by_asset[quote_asset]
 
-        quantity = request.quantity
-        quote_quantity = quantity * request.price
+        quantity = order.quantity
+        quote_quantity = quantity * order.price
 
-        if request.side == "BUY":
+        if order.side == "BUY":
             updated_base_balance = replace(
                 base_balance,
                 free=base_balance.free + quantity,
@@ -154,7 +153,7 @@ class PaperExecutor:
                 locked=quote_balance.locked - quote_quantity,
             )
 
-        elif request.side == "SELL":
+        elif order.side == "SELL":
             updated_base_balance = replace(
                 base_balance,
                 locked=base_balance.locked - quantity,
@@ -166,15 +165,13 @@ class PaperExecutor:
             )
 
         else:
-            raise ValueError(f"Unsupported order side: {request.side}")
+            raise ValueError(f"Unsupported order side: {order.side}")
 
         self._balances_by_asset[base_asset] = updated_base_balance
         self._balances_by_asset[quote_asset] = updated_quote_balance
 
     def _release_limit_order(self, order: Order) -> None:
-        request = order.request
-
-        if request.price is None:
+        if order.price is None:
             raise RuntimeError(f"Limit order {order.order_id} has no price")
 
         base_asset = self._instrument.base_asset
@@ -183,10 +180,10 @@ class PaperExecutor:
         base_balance = self._balances_by_asset[base_asset]
         quote_balance = self._balances_by_asset[quote_asset]
 
-        quantity = request.quantity
-        quote_quantity = quantity * request.price
+        quantity = order.quantity
+        quote_quantity = quantity * order.price
 
-        if request.side == "BUY":
+        if order.side == "BUY":
             updated_quote_balance = replace(
                 quote_balance,
                 free=quote_balance.free + quote_quantity,
@@ -196,7 +193,7 @@ class PaperExecutor:
             self._balances_by_asset[quote_asset] = updated_quote_balance
             return
 
-        if request.side == "SELL":
+        if order.side == "SELL":
             updated_base_balance = replace(
                 base_balance,
                 free=base_balance.free + quantity,
@@ -206,7 +203,7 @@ class PaperExecutor:
             self._balances_by_asset[base_asset] = updated_base_balance
             return
 
-        raise ValueError(f"Unsupported order side: {request.side}")
+        raise ValueError(f"Unsupported order side: {order.side}")
 
     async def update_executor(self, kline: KlineEvent) -> None:
         self._current_kline = kline
@@ -216,13 +213,11 @@ class PaperExecutor:
             if order.status != "NEW":
                 continue
 
-            request = order.request
-
-            if request.order_type != "LIMIT" or request.price is None:
+            if order.order_type != "LIMIT" or order.price is None:
                 continue
 
-            buy_filled = request.side == "BUY" and kline.low <= request.price
-            sell_filled = request.side == "SELL" and kline.high >= request.price
+            buy_filled = order.side == "BUY" and kline.low <= order.price
+            sell_filled = order.side == "SELL" and kline.high >= order.price
 
             if not (buy_filled or sell_filled):
                 continue
@@ -232,8 +227,8 @@ class PaperExecutor:
             updated_order = replace(
                 order,
                 status="FILLED",
-                filled_quantity=request.quantity,
-                average_fill_price=request.price,
+                filled_quantity=order.quantity,
+                average_fill_price=order.price,
             )
 
             self._orders_by_id[order_id] = updated_order
@@ -242,58 +237,46 @@ class PaperExecutor:
         self._print_balances()
 
     async def place_order(self, order_request: OrderRequest) -> Order:
-        order_id = str(self._next_order_id)
-        self._next_order_id += 1
-
-        if order_request.quantity <= 0:
-            order = Order(
-                order_id=order_id,
-                request=order_request,
-                status="REJECTED",
-                filled_quantity=Decimal("0.0"),
-                average_fill_price=None,
-            )
-
-        elif order_request.order_type == "MARKET":
+        if order_request.order_type == "MARKET":
             execution_price = self._get_current_kline().close
             was_filled = self._try_settle_market_order(order_request, execution_price)
 
-            if was_filled:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="FILLED",
-                    filled_quantity=order_request.quantity,
-                    average_fill_price=execution_price,
-                )
-            else:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="REJECTED",
-                    filled_quantity=Decimal("0.0"),
-                    average_fill_price=None,
-                )
+            if not was_filled:
+                raise OrderPlacementRejectedError("Insufficient balance for market order")
+
+            order_id = str(self._next_order_id)
+            self._next_order_id += 1
+
+            order = Order(
+                order_id=order_id,
+                side=order_request.side,
+                order_type=order_request.order_type,
+                quantity=order_request.quantity,
+                price=order_request.price,
+                status="FILLED",
+                filled_quantity=order_request.quantity,
+                average_fill_price=execution_price,
+            )
 
         elif order_request.order_type == "LIMIT":
             was_accepted = self._try_reserve_limit_order(order_request)
 
-            if was_accepted:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="NEW",
-                    filled_quantity=Decimal("0.0"),
-                    average_fill_price=None,
-                )
-            else:
-                order = Order(
-                    order_id=order_id,
-                    request=order_request,
-                    status="REJECTED",
-                    filled_quantity=Decimal("0.0"),
-                    average_fill_price=None,
-                )
+            if not was_accepted:
+                raise OrderPlacementRejectedError("Limit order was not accepted")
+
+            order_id = str(self._next_order_id)
+            self._next_order_id += 1
+
+            order = Order(
+                order_id=order_id,
+                side=order_request.side,
+                order_type=order_request.order_type,
+                quantity=order_request.quantity,
+                price=order_request.price,
+                status="NEW",
+                filled_quantity=Decimal("0.0"),
+                average_fill_price=None,
+            )
 
         else:
             raise ValueError(f"Unsupported order type: {order_request.order_type}")
@@ -301,32 +284,38 @@ class PaperExecutor:
         self._orders_by_id[order_id] = order
         return order
 
-    async def cancel_order(self, order: Order) -> Order:
+    async def cancel_order(self, order_id: str) -> Order:
         try:
-            stored_order = self._orders_by_id[order.order_id]
+            stored_order = self._orders_by_id[order_id]
         except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order.order_id}") from error
+            raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
 
-        # TODO: Release only the unfilled reservation when partial fills are supported.
-        if stored_order.status != "NEW":
+        if stored_order.status in {"FILLED", "CANCELED"}:
             return stored_order
 
-        if stored_order.request.order_type == "LIMIT":
-            self._release_limit_order(stored_order)
+        if stored_order.status == "PARTIALLY_FILLED":
+            raise OrderCancellationRejectedError(f"PaperExecutor does not support canceling partially filled order #{order_id}")
+
+        if stored_order.order_type != "LIMIT":
+            raise RuntimeError(
+                f"Unexpected NEW {stored_order.order_type} order: {order_id}"
+            )
+
+        self._release_limit_order(stored_order)
 
         updated_order = replace(
             stored_order,
             status="CANCELED",
         )
 
-        self._orders_by_id[order.order_id] = updated_order
+        self._orders_by_id[order_id] = updated_order
         return updated_order
 
     async def get_order(self, order_id: str) -> Order:
         try:
             return self._orders_by_id[order_id]
         except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order_id}") from error
+            raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(
