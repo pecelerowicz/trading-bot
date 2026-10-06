@@ -10,6 +10,14 @@ class OrderPlacementOutcomeUnknownError(Exception):
     pass
 
 
+class OrderNotFoundError(Exception):
+    pass
+
+
+class OrderRetrievalError(Exception):
+    pass
+
+
 class UnexpectedOrderStateError(RuntimeError):
     pass
 

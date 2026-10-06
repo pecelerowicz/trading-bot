@@ -1,7 +1,7 @@
 from dataclasses import replace
 from decimal import Decimal
 
-from trading_bot.errors import OrderRejectedError
+from trading_bot.errors import OrderNotFoundError, OrderRejectedError
 from trading_bot.models.account import AssetBalance, AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
@@ -309,7 +309,7 @@ class PaperExecutor:
         try:
             return self._orders_by_id[order_id]
         except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order_id}") from error
+            raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(

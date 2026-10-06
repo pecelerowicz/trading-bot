@@ -4,6 +4,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 
+
 class Executor(Protocol):
     # TODO: Revisit whether update_executor belongs in the common port after BinanceExecutor is implemented.
     async def update_executor(self, kline: KlineEvent) -> None:
@@ -25,6 +26,19 @@ class Executor(Protocol):
         ...
 
     async def get_order(self, order_id: str) -> Order:
+        """
+        Retrieve an order.
+
+        Returns:
+            The requested order.
+
+        Raises:
+            OrderNotFoundError:
+                If the executor definitively determines that the order does not exist.
+            OrderRetrievalError:
+                If the order cannot be retrieved due to an executor,
+                communication, or unexpected response error.
+        """
         ...
 
     async def cancel_order(self, order: Order) -> Order:
