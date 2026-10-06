@@ -151,7 +151,12 @@ class TradingDebugLogger:
     def campaign_summary(self, campaign: CampaignView) -> None:
         filled = len([order for order in campaign.orders if order.status == "FILLED"])
         canceled = len([order for order in campaign.orders if order.status == "CANCELED"])
-        active = len([order for order in campaign.orders if order.status not in {"FILLED", "CANCELED"}])
+        venue_expired = len([order for order in campaign.orders if order.status == "VENUE_EXPIRED"])
+        active = len([
+            order
+            for order in campaign.orders
+            if order.status not in {"FILLED", "CANCELED", "VENUE_EXPIRED"}
+        ])
 
         status = campaign.state.value
         summary = campaign.execution_summary()
@@ -166,7 +171,8 @@ class TradingDebugLogger:
             f"orders={len(campaign.orders)} | "
             f"filled={filled} | "
             f"active={active} | "
-            f"canceled={canceled}",
+            f"canceled={canceled} | "
+            f"venue_expired={venue_expired}",
             indent=2,
         )
 

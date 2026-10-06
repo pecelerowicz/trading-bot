@@ -36,7 +36,7 @@ class OrderRequest:
             raise InvalidOrderRequestError("Limit order price must be positive")
 
 
-OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED"]
+OrderStatus = Literal["NEW", "PARTIALLY_FILLED", "FILLED", "CANCELED", "VENUE_EXPIRED"]
 
 @dataclass(frozen=True)
 class Order:
