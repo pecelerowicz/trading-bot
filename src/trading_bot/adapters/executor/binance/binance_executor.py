@@ -5,12 +5,7 @@ from typing import Any
 from binance import AsyncClient
 from binance.exceptions import BinanceAPIException, BinanceRequestException
 
-from trading_bot.errors import (
-    OrderNotFoundError,
-    OrderPlacementOutcomeUnknownError,
-    OrderRejectedError,
-    OrderRetrievalError,
-)
+from trading_bot.errors import OrderPlacementOutcomeUnknownError, OrderRejectedError
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
@@ -59,28 +54,11 @@ class BinanceExecutor:
         return order_parameters
 
     async def get_order(self, order_id: str) -> Order:
-        binance_order_id = int(order_id)
+        raw_order = await self._client.get_order( symbol=self._instrument.symbol, orderId=int(order_id))
+        return self._map_order(raw_order=raw_order)
 
-        try:
-            raw_order = await self._client.get_order(symbol=self._instrument.symbol, orderId=binance_order_id)
-        except BinanceAPIException as error:
-            if error.code == -2013:
-                raise OrderNotFoundError(f"Order {order_id} was not found") from error
-            raise OrderRetrievalError(str(error)) from error
-        except (BinanceRequestException, asyncio.TimeoutError) as error:
-            raise OrderRetrievalError(str(error)) from error
-
-        try:
-            return self._map_order(raw_order=raw_order)
-        except (KeyError, TypeError, ValueError, ArithmeticError) as error:
-            raise OrderRetrievalError(f"Invalid Binance response for order {order_id}") from error
-
-    async def cancel_order(self, order: Order) -> Order:
-        raw_order = await self._client.cancel_order(
-            symbol=self._instrument.symbol,
-            orderId=int(order.order_id),
-        )
-
+    async def cancel_order(self, order_id: str) -> Order:
+        raw_order = await self._client.cancel_order(symbol=self._instrument.symbol, orderId=int(order_id))
         return self._map_order(raw_order=raw_order)
 
     async def get_account_snapshot(self) -> AccountSnapshot:

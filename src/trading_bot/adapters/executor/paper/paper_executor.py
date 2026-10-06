@@ -284,32 +284,40 @@ class PaperExecutor:
         self._orders_by_id[order_id] = order
         return order
 
-    async def cancel_order(self, order: Order) -> Order:
+    async def cancel_order(self, order_id: str) -> Order:
         try:
-            stored_order = self._orders_by_id[order.order_id]
+            stored_order = self._orders_by_id[order_id]
         except KeyError as error:
-            raise KeyError(f"Unknown paper order: {order.order_id}") from error
+            raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
 
-        # TODO: Release only the unfilled reservation when partial fills are supported.
-        if stored_order.status != "NEW":
+        if stored_order.status in {"FILLED", "CANCELED"}:
             return stored_order
 
-        if stored_order.order_type == "LIMIT":
-            self._release_limit_order(stored_order)
+        if stored_order.status == "PARTIALLY_FILLED":
+            raise RuntimeError(
+                f"PaperExecutor does not support canceling partially filled order #{order_id}"
+            )
+
+        if stored_order.order_type != "LIMIT":
+            raise RuntimeError(
+                f"Unexpected NEW {stored_order.order_type} order: {order_id}"
+            )
+
+        self._release_limit_order(stored_order)
 
         updated_order = replace(
             stored_order,
             status="CANCELED",
         )
 
-        self._orders_by_id[order.order_id] = updated_order
+        self._orders_by_id[order_id] = updated_order
         return updated_order
 
     async def get_order(self, order_id: str) -> Order:
         try:
             return self._orders_by_id[order_id]
         except KeyError as error:
-            raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
+            raise KeyError(f"Unknown paper order: {order_id}") from error
 
     async def get_account_snapshot(self) -> AccountSnapshot:
         return AccountSnapshot(

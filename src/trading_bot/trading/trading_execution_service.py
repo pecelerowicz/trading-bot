@@ -116,7 +116,7 @@ class TradingExecutionService:
                 continue
 
             previous_status = order.status
-            canceled_order = await self.executor.cancel_order(order)
+            canceled_order = await self.executor.cancel_order(order.order_id)
 
             if canceled_order.filled_quantity != order.filled_quantity:
                 raise StrategySignalConflictError(
