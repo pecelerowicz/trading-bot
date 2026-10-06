@@ -2,27 +2,31 @@ class InvalidOrderRequestError(ValueError):
     pass
 
 
-class OrderRejectedError(Exception):
+class ExecutorError(Exception):
     pass
 
 
-class OrderPlacementOutcomeUnknownError(Exception):
+class OrderPlacementRejectedError(ExecutorError):
     pass
 
 
-class OrderNotFoundError(Exception):
+class OrderPlacementOutcomeUnknownError(ExecutorError):
     pass
 
 
-class OrderRetrievalError(Exception):
+class OrderNotFoundError(ExecutorError):
     pass
 
 
-class OrderCancellationRejectedError(Exception):
+class OrderRetrievalError(ExecutorError):
     pass
 
 
-class OrderCancellationOutcomeUnknownError(Exception):
+class OrderCancellationRejectedError(ExecutorError):
+    pass
+
+
+class OrderCancellationOutcomeUnknownError(ExecutorError):
     pass
 
 

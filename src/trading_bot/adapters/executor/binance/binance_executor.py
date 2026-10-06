@@ -10,7 +10,7 @@ from trading_bot.errors import (
     OrderCancellationRejectedError,
     OrderNotFoundError,
     OrderPlacementOutcomeUnknownError,
-    OrderRejectedError,
+    OrderPlacementRejectedError,
     OrderRetrievalError,
 )
 from trading_bot.models.account import AccountSnapshot, AssetBalance
@@ -36,12 +36,12 @@ class BinanceExecutor:
             if error.code in {-1006, -1007} or error.status_code >= 500:
                 raise OrderPlacementOutcomeUnknownError(str(error)) from error
 
-            raise OrderRejectedError(str(error)) from error
+            raise OrderPlacementRejectedError(str(error)) from error
         except (BinanceRequestException, asyncio.TimeoutError) as error:
             raise OrderPlacementOutcomeUnknownError(str(error)) from error
 
         if raw_order["status"] == "REJECTED":
-            raise OrderRejectedError("Binance rejected the order")
+            raise OrderPlacementRejectedError("Binance rejected the order")
 
         return self._map_order(raw_order=raw_order)
 

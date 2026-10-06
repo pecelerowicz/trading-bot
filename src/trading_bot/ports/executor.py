@@ -17,7 +17,7 @@ class Executor(Protocol):
             The order created by the executor.
 
         Raises:
-            OrderRejectedError:
+            OrderPlacementRejectedError:
                 If the order is definitively rejected and no order is created.
             OrderPlacementOutcomeUnknownError:
                 If the order request was sent, but it cannot be determined whether the order was created.

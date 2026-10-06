@@ -1,7 +1,7 @@
 from dataclasses import replace
 from decimal import Decimal
 
-from trading_bot.errors import OrderCancellationRejectedError, OrderNotFoundError, OrderRejectedError
+from trading_bot.errors import OrderCancellationRejectedError, OrderNotFoundError, OrderPlacementRejectedError
 from trading_bot.models.account import AssetBalance, AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
@@ -242,7 +242,7 @@ class PaperExecutor:
             was_filled = self._try_settle_market_order(order_request, execution_price)
 
             if not was_filled:
-                raise OrderRejectedError("Insufficient balance for market order")
+                raise OrderPlacementRejectedError("Insufficient balance for market order")
 
             order_id = str(self._next_order_id)
             self._next_order_id += 1
@@ -262,7 +262,7 @@ class PaperExecutor:
             was_accepted = self._try_reserve_limit_order(order_request)
 
             if not was_accepted:
-                raise OrderRejectedError("Limit order was not accepted")
+                raise OrderPlacementRejectedError("Limit order was not accepted")
 
             order_id = str(self._next_order_id)
             self._next_order_id += 1
