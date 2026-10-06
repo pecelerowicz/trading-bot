@@ -173,8 +173,8 @@ class BinanceExecutor:
             "PARTIALLY_FILLED": "PARTIALLY_FILLED",
             "FILLED": "FILLED",
             "CANCELED": "CANCELED",
-            "EXPIRED": "CANCELED",
-            "EXPIRED_IN_MATCH": "CANCELED",
+            "EXPIRED": "VENUE_EXPIRED",
+            "EXPIRED_IN_MATCH": "VENUE_EXPIRED",
         }
 
         if status in status_mapping:

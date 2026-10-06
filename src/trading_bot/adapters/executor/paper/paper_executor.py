@@ -291,10 +291,14 @@ class PaperExecutor:
             raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
 
         if stored_order.status in {"FILLED", "CANCELED"}:
-            return stored_order
+            raise OrderCancellationRejectedError(
+                f"Cannot cancel order #{order_id} with status {stored_order.status}"
+            )
 
         if stored_order.status == "PARTIALLY_FILLED":
-            raise OrderCancellationRejectedError(f"PaperExecutor does not support canceling partially filled order #{order_id}")
+            raise OrderCancellationRejectedError(
+                f"PaperExecutor does not support canceling partially filled order #{order_id}"
+            )
 
         if stored_order.order_type != "LIMIT":
             raise RuntimeError(
