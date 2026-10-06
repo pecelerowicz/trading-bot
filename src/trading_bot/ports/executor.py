@@ -25,6 +25,18 @@ class Executor(Protocol):
         ...
 
     async def get_order(self, order_id: str) -> Order:
+        """
+        Retrieve an order.
+
+        Returns:
+            The requested order.
+
+        Raises:
+            OrderNotFoundError:
+                If the executor definitively determines that the order does not exist.
+            OrderRetrievalError:
+                If the order cannot be retrieved or the received response cannot be interpreted.
+        """
         ...
 
     async def cancel_order(self, order_id: str) -> Order:
