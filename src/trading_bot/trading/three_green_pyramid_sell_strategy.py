@@ -13,7 +13,7 @@ class ThreeGreenPyramidSellStrategy:
     def __init__(self, instrument: Instrument) -> None:
         self.instrument = instrument
 
-    def on_kline(
+    def create_signal(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
