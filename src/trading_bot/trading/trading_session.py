@@ -29,25 +29,19 @@ class TradingSession:
     async def _handle_kline(self, kline: KlineEvent) -> None:
         if not kline.is_closed:
             return
-
-        self.logger.candle(kline)
-        self.klines.append(kline)
-
         await self.execution_service.update_executor(kline)
 
-        signal = await self._get_strategy_signal(kline)
-        execution = await self._execute_strategy_signal(signal, kline)
+        self.logger.candle(kline)
 
-    async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal | None:
+        self.klines.append(kline)
         current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
         account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
 
-        return self.strategy.on_kline(kline=kline,
-                                      klines=self.klines,
-                                      current_campaign=current_campaign_view,
-                                      account_snapshot=account_snapshot)
+        signal = self.strategy.create_signal(kline, self.klines, current_campaign_view, account_snapshot)
+        execution = await self._execute_signal(signal, kline)
 
-    async def _execute_strategy_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
+
+    async def _execute_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
         if signal is None:
             self.logger.signal("NoAction")
             return

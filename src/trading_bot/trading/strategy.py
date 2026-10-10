@@ -7,11 +7,11 @@ from trading_bot.trading.signal import StrategySignal
 
 
 class Strategy(Protocol):
-    def on_kline(
+    def create_signal(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: CampaignView | None,
+        current_campaign_view: CampaignView | None,
         account_snapshot: AccountSnapshot
     ) -> StrategySignal | None:
         ...
