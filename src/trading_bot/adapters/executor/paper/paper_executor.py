@@ -290,7 +290,7 @@ class PaperExecutor:
         except KeyError as error:
             raise OrderNotFoundError(f"Unknown paper order: {order_id}") from error
 
-        if stored_order.status in {"FILLED", "CANCELED"}:
+        if stored_order.status in {"FILLED", "CANCELED", "VENUE_EXPIRED"}:
             raise OrderCancellationRejectedError(
                 f"Cannot cancel order #{order_id} with status {stored_order.status}"
             )

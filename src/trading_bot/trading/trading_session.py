@@ -36,7 +36,7 @@ class TradingSession:
         await self.execution_service.update_executor(kline)
 
         signal = await self._get_strategy_signal(kline)
-        await self._handle_signal(signal, kline)
+        execution = await self._execute_strategy_signal(signal, kline)
 
     async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal | None:
         current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
@@ -47,7 +47,7 @@ class TradingSession:
                                       current_campaign=current_campaign_view,
                                       account_snapshot=account_snapshot)
 
-    async def _handle_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
+    async def _execute_strategy_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
         if signal is None:
             self.logger.signal("NoAction")
             return
