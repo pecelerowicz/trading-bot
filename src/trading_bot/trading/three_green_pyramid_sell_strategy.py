@@ -17,21 +17,21 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: CampaignView | None,
+        current_campaign_view: CampaignView | None,
         account_snapshot: AccountSnapshot
     ) -> StrategySignal | None:
-        if current_campaign is None:
+        if current_campaign_view is None:
             return self._on_no_campaign(kline=kline,
                                         klines=klines,
                                         account_snapshot=account_snapshot)
 
-        if current_campaign.is_open:
+        if current_campaign_view.is_open:
             return self._on_open_campaign(kline=kline,
                                           klines=klines,
-                                          current_campaign=current_campaign,
+                                          current_campaign=current_campaign_view,
                                           account_snapshot=account_snapshot)
 
-        raise RuntimeError(f"Campaign in unexpected state: {current_campaign.state.value}")
+        raise RuntimeError(f"Campaign in unexpected state: {current_campaign_view.state.value}")
 
     def _on_no_campaign(
         self,
