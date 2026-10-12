@@ -1,110 +1,25 @@
-from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import Campaign
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.models.campaign import Campaign, CampaignView
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
-from trading_bot.trading.signal import SignalType, StrategySignal
 from trading_bot.trading.strategy import Strategy
 from trading_bot.trading.trading_execution_service2 import TradingExecutionService2
 
 
-class TradingSession:
+class TradingSession2:
 
-    def __init__(self, strategy: Strategy, execution_service2: TradingExecutionService2, logger: TradingDebugLogger, reconciliation_reporter: PortfolioReconciliationReporter) -> None:
+    def __init__(
+        self,
+        strategy: Strategy,
+        execution_service: TradingExecutionService2,
+        logger: TradingDebugLogger,
+        reconciliation_reporter: PortfolioReconciliationReporter,
+    ) -> None:
         self.strategy = strategy
-        self.execution_service2 = execution_service2
+        self.execution_service = execution_service
         self.logger = logger
         self.reconciliation_reporter = reconciliation_reporter
+
         self.klines: list[KlineEvent] = []
         self.campaigns: list[Campaign] = []
         self.current_campaign: Campaign | None = None
-
-    async def handle_kline(self, kline: KlineEvent) -> None:
-        try:
-            await self._handle_kline(kline)
-        except Exception as error:
-            self._require_recovery(error)
-            raise
-
-    async def _handle_kline(self, kline: KlineEvent) -> None:
-        if not kline.is_closed:
-            return
-        await self.execution_service.update_executor(kline)
-
-        self.logger.candle(kline)
-
-        self.klines.append(kline)
-        current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
-        account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
-
-        signal = self.strategy.create_signal(kline, self.klines, current_campaign_view, account_snapshot)
-        execution = await self.execution_service2.execute_signal(signal, kline)
-
-        #handle_campaign(signal, execution)
-
-
-    async def _execute_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
-        if signal is None:
-            self.logger.signal("NoAction")
-            return
-
-        self.logger.signal(signal.signal_type.value)
-
-        match signal.signal_type:
-            case SignalType.OPEN:
-                await self._open_campaign(signal, kline)
-
-            case SignalType.CLOSE:
-                await self._close_campaign(signal, kline)
-
-            case _:
-                raise TypeError(f"Unsupported strategy signal type: {signal.signal_type}")
-
-    async def _open_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
-        if self.current_campaign is not None:
-            self.logger.campaign("Open signal ignored: current campaign already exists")
-            return
-
-        campaign = Campaign()
-
-        self.current_campaign = campaign
-        self.campaigns.append(campaign)
-
-        await self.reconciliation_reporter.on_campaign_opened(
-            campaign_number=len(self.campaigns),
-        )
-
-        await self.execution_service.open_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
-
-    async def _close_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
-        campaign = self.current_campaign
-
-        if campaign is None:
-            self.logger.campaign("Close signal ignored: no current campaign")
-            return
-
-        await self.execution_service.close_campaign(campaign=campaign, order_ids_to_cancel=signal.cancel_order_ids, order_requests=signal.order_requests, kline=kline)
-
-        campaign_view = await self.execution_service.get_campaign_view(campaign)
-
-        self.logger.campaign_summary(campaign_view)
-        self.logger.campaigns_history(self.campaigns)
-
-        self.current_campaign = None
-
-        await self.reconciliation_reporter.on_campaign_closed(
-            campaign=campaign_view,
-        )
-
-    def _require_recovery(self, error: Exception) -> None:
-        if self.current_campaign is None:
-            return
-
-        if self.current_campaign.is_closed:
-            return
-
-        self.current_campaign.require_recovery()
-        self.logger.campaign(
-            f"Recovery required in {self.current_campaign.state.value}: "
-            f"{type(error).__name__}: {error}"
-        )
