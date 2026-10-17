@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from trading_bot.models.account import AccountSnapshot
-from trading_bot.models.campaign import CampaignView
+from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
@@ -17,26 +17,21 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign_view: CampaignView | None,
+        order_state_snapshot: OrderStateSnapshot | None,
         account_snapshot: AccountSnapshot,
     ) -> StrategySignal:
-        if current_campaign_view is None:
+        if order_state_snapshot is None:
             return self._on_no_campaign(
                 kline=kline,
                 klines=klines,
                 account_snapshot=account_snapshot,
             )
 
-        if current_campaign_view.is_open:
-            return self._on_open_campaign(
-                kline=kline,
-                klines=klines,
-                current_campaign=current_campaign_view,
-                account_snapshot=account_snapshot,
-            )
-
-        raise RuntimeError(
-            f"Campaign in unexpected state: {current_campaign_view.state.value}"
+        return self._on_open_campaign(
+            kline=kline,
+            klines=klines,
+            order_state_snapshot=order_state_snapshot,
+            account_snapshot=account_snapshot,
         )
 
     def _on_no_campaign(
@@ -92,7 +87,7 @@ class ThreeGreenPyramidSellStrategy:
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: CampaignView,
+        order_state_snapshot: OrderStateSnapshot,
         account_snapshot: AccountSnapshot,
     ) -> StrategySignal:
         if len(klines) >= 2:
@@ -102,7 +97,7 @@ class ThreeGreenPyramidSellStrategy:
             )
 
             if is_two_consecutive_red:
-                summary = current_campaign.execution_summary()
+                summary = order_state_snapshot.execution_summary()
 
                 quantity_to_buy_back = summary.sold_base - summary.bought_base
                 quantity_to_buy_back = max(
@@ -131,7 +126,7 @@ class ThreeGreenPyramidSellStrategy:
 
                 cancel_order_ids = [
                     order.order_id
-                    for order in current_campaign.orders
+                    for order in order_state_snapshot.orders
                     if order.status in {"NEW", "PARTIALLY_FILLED"}
                 ]
 

@@ -22,8 +22,6 @@ class CampaignHealth(Enum):
 
 @dataclass(frozen=True)
 class CampaignExecutionSummary:
-    state: CampaignState
-
     bought_base: Decimal = Decimal("0.0")
     sold_base: Decimal = Decimal("0.0")
 
@@ -40,6 +38,48 @@ class CampaignExecutionSummary:
 @dataclass(frozen=True)
 class OrderStateSnapshot:
     orders: tuple[Order, ...]
+
+    def execution_summary(self) -> CampaignExecutionSummary:
+        bought_base = Decimal("0.0")
+        sold_base = Decimal("0.0")
+
+        spent_quote = Decimal("0.0")
+        received_quote = Decimal("0.0")
+
+        for order in self.orders:
+            if order.filled_quantity <= Decimal("0.0"):
+                continue
+
+            if order.average_fill_price is None:
+                continue
+
+            base_quantity = order.filled_quantity
+            quote_value = order.filled_quantity * order.average_fill_price
+
+            if order.side == "BUY":
+                bought_base += base_quantity
+                spent_quote += quote_value
+
+            elif order.side == "SELL":
+                sold_base += base_quantity
+                received_quote += quote_value
+
+        net_base_delta = bought_base - sold_base
+        net_quote_delta = received_quote - spent_quote
+
+        average_buy_price = spent_quote / bought_base if bought_base > 0 else None
+        average_sell_price = received_quote / sold_base if sold_base > 0 else None
+
+        return CampaignExecutionSummary(
+            bought_base=bought_base,
+            sold_base=sold_base,
+            spent_quote=spent_quote,
+            received_quote=received_quote,
+            net_base_delta=net_base_delta,
+            net_quote_delta=net_quote_delta,
+            average_buy_price=average_buy_price,
+            average_sell_price=average_sell_price,
+        )
 
 
 @dataclass(frozen=True)
@@ -129,44 +169,4 @@ class CampaignView:
         return self.state == CampaignState.CLOSED
 
     def execution_summary(self) -> CampaignExecutionSummary:
-        bought_base = Decimal("0.0")
-        sold_base = Decimal("0.0")
-
-        spent_quote = Decimal("0.0")
-        received_quote = Decimal("0.0")
-
-        for order in self.orders:
-            if order.filled_quantity <= Decimal("0.0"):
-                continue
-
-            if order.average_fill_price is None:
-                continue
-
-            base_quantity = order.filled_quantity
-            quote_value = order.filled_quantity * order.average_fill_price
-
-            if order.side == "BUY":
-                bought_base += base_quantity
-                spent_quote += quote_value
-
-            elif order.side == "SELL":
-                sold_base += base_quantity
-                received_quote += quote_value
-
-        net_base_delta = bought_base - sold_base
-        net_quote_delta = received_quote - spent_quote
-
-        average_buy_price = spent_quote / bought_base if bought_base > 0 else None
-        average_sell_price = received_quote / sold_base if sold_base > 0 else None
-
-        return CampaignExecutionSummary(
-            state=self.state,
-            bought_base=bought_base,
-            sold_base=sold_base,
-            spent_quote=spent_quote,
-            received_quote=received_quote,
-            net_base_delta=net_base_delta,
-            net_quote_delta=net_quote_delta,
-            average_buy_price=average_buy_price,
-            average_sell_price=average_sell_price,
-        )
+        return OrderStateSnapshot(orders=self.orders).execution_summary()
