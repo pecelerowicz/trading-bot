@@ -2,7 +2,10 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import Enum
 
+from trading_bot.models.execution import Execution
+from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order
+from trading_bot.trading.signal import StrategySignal
 
 
 class CampaignState(Enum):
@@ -34,9 +37,23 @@ class CampaignExecutionSummary:
     average_sell_price: Decimal | None = None
 
 
+@dataclass(frozen=True)
+class OrderStateSnapshot:
+    orders: tuple[Order, ...]
+
+
+@dataclass(frozen=True)
+class CampaignRecord:
+    kline: KlineEvent
+    order_state_snapshot: OrderStateSnapshot
+    signal: StrategySignal
+    execution: Execution
+
+
 @dataclass
 class Campaign:
     order_ids: list[str] = field(default_factory=list)
+    records: list[CampaignRecord] = field(default_factory=list)
     _state: CampaignState = field(default=CampaignState.OPENING, init=False, repr=False)
     _health: CampaignHealth = field(default=CampaignHealth.NORMAL, init=False, repr=False)
 
