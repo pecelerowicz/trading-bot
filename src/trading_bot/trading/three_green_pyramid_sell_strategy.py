@@ -97,7 +97,7 @@ class ThreeGreenPyramidSellStrategy:
             )
 
             if is_two_consecutive_red:
-                summary = order_state_snapshot.execution_summary()
+                summary = order_state_snapshot.fill_summary()
 
                 quantity_to_buy_back = summary.sold_base - summary.bought_base
                 quantity_to_buy_back = max(

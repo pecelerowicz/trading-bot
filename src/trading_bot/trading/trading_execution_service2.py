@@ -5,6 +5,8 @@ from trading_bot.errors import (
     OrderPlacementOutcomeUnknownError,
     OrderPlacementRejectedError,
 )
+from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.execution import (
     Cancellation,
     Execution,
@@ -23,6 +25,21 @@ class TradingExecutionService2:
     def __init__(self, executor: Executor, logger: TradingDebugLogger) -> None:
         self.executor = executor
         self.logger = logger
+
+    async def update_executor(self, kline: KlineEvent) -> None:
+        await self.executor.update_executor(kline)
+
+    async def get_account_snapshot(self) -> AccountSnapshot:
+        return await self.executor.get_account_snapshot()
+
+    async def get_order_state_snapshot(self, order_ids: list[str]) -> OrderStateSnapshot:
+        orders: list[Order] = []
+
+        for order_id in order_ids:
+            order = await self.executor.get_order(order_id)
+            orders.append(order)
+
+        return OrderStateSnapshot(orders=tuple(orders))
 
     async def execute_signal(self, signal: StrategySignal, kline: KlineEvent) -> Execution:
         cancellations: list[Cancellation] = []

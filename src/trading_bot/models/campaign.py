@@ -21,7 +21,7 @@ class CampaignHealth(Enum):
 
 
 @dataclass(frozen=True)
-class CampaignExecutionSummary:
+class OrderFillSummary:
     bought_base: Decimal = Decimal("0.0")
     sold_base: Decimal = Decimal("0.0")
 
@@ -39,7 +39,7 @@ class CampaignExecutionSummary:
 class OrderStateSnapshot:
     orders: tuple[Order, ...]
 
-    def execution_summary(self) -> CampaignExecutionSummary:
+    def fill_summary(self) -> OrderFillSummary:
         bought_base = Decimal("0.0")
         sold_base = Decimal("0.0")
 
@@ -70,7 +70,7 @@ class OrderStateSnapshot:
         average_buy_price = spent_quote / bought_base if bought_base > 0 else None
         average_sell_price = received_quote / sold_base if sold_base > 0 else None
 
-        return CampaignExecutionSummary(
+        return OrderFillSummary(
             bought_base=bought_base,
             sold_base=sold_base,
             spent_quote=spent_quote,
@@ -168,5 +168,5 @@ class CampaignView:
     def is_closed(self) -> bool:
         return self.state == CampaignState.CLOSED
 
-    def execution_summary(self) -> CampaignExecutionSummary:
-        return OrderStateSnapshot(orders=self.orders).execution_summary()
+    def execution_summary(self) -> OrderFillSummary:
+        return OrderStateSnapshot(orders=self.orders).fill_summary()
