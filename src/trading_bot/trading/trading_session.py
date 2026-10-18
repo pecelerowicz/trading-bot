@@ -15,9 +15,12 @@ class TradingSession:
         self.execution_service = execution_service
         self.logger = logger
         self.reconciliation_reporter = reconciliation_reporter
+        self.kline: KlineEvent | None = None
         self.klines: list[KlineEvent] = []
         self.campaigns: list[Campaign] = []
         self.current_campaign: Campaign | None = None
+        self.current_campaign_view: CampaignView | None = None
+        self.account_snapshot: AccountSnapshot | None = None
 
     async def handle_kline(self, kline: KlineEvent) -> None:
         try:
@@ -27,25 +30,22 @@ class TradingSession:
             raise
 
     async def _handle_kline(self, kline: KlineEvent) -> None:
+
+        # preliminary work
         if not kline.is_closed:
             return
-
         self.logger.candle(kline)
-        self.klines.append(kline)
-
         await self.execution_service.update_executor(kline)
 
-        signal = await self._get_strategy_signal(kline)
-        execution = await self._execute_strategy_signal(signal, kline)
+        # current world
+        self.kline = kline
+        self.klines.append(kline)
+        self.current_campaign_view = await self.execution_service.get_campaign_view(self.current_campaign)
+        self.account_snapshot = await self.execution_service.get_account_snapshot()
 
-    async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal | None:
-        current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
-        account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
-
-        return self.strategy.on_kline(kline=kline,
-                                      klines=self.klines,
-                                      current_campaign=current_campaign_view,
-                                      account_snapshot=account_snapshot)
+        # actual processing
+        signal = self.strategy.on_kline(self.kline, self.klines, self.current_campaign_view, self.account_snapshot)
+        await self._execute_strategy_signal(signal, kline)
 
     async def _execute_strategy_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
         if signal is None:

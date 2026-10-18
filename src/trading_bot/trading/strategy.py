@@ -11,7 +11,7 @@ class Strategy(Protocol):
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: CampaignView | None,
+        current_campaign_view: CampaignView | None,
         account_snapshot: AccountSnapshot
     ) -> StrategySignal | None:
         ...
