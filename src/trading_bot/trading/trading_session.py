@@ -40,12 +40,12 @@ class TradingSession:
         # current world
         self.kline = kline
         self.klines.append(kline)
-        self.current_campaign_view = await self.execution_service.get_campaign_view(self.current_campaign)
-        self.account_snapshot = await self.execution_service.get_account_snapshot()
+        self.current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
+        self.account_snapshot: AccountSnapshot | None = await self.execution_service.get_account_snapshot()
 
         # actual processing
         signal = self.strategy.on_kline(self.kline, self.klines, self.current_campaign_view, self.account_snapshot)
-        await self._execute_strategy_signal(signal, kline)
+        execution = await self._execute_strategy_signal(signal, kline)
 
     async def _execute_strategy_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
         if signal is None:
@@ -78,7 +78,20 @@ class TradingSession:
             campaign_number=len(self.campaigns),
         )
 
-        await self.execution_service.open_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
+        self.logger.campaign("Opening campaign")
+
+        orders = await self.execution_service.place_orders(order_requests=signal.order_requests)
+
+        self.logger.placed_orders(orders)
+
+        for order in orders:
+            if order.status == "FILLED" and order.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
+
+        campaign.order_ids = [order.order_id for order in orders]
+        campaign.mark_open()
+
+        self.logger.campaign("Opened campaign")
 
     async def _close_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
         campaign = self.current_campaign

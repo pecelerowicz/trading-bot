@@ -35,14 +35,15 @@ class TradingExecutionService:
             orders=orders,
         )
 
-    async def open_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
-        self.logger.campaign("Opening campaign")
+    async def place_orders(self, order_requests: list[OrderRequest]) -> list[Order]:
+        orders: list[Order] = []
 
-        orders = await self._place_orders(order_requests=order_requests, kline=kline)
-        campaign.order_ids = [order.order_id for order in orders]
-        campaign.mark_open()
+        for order_request in order_requests:
+            order = await self.executor.place_order(order_request=order_request)
+            self._validate_placed_order(order)
+            orders.append(order)
 
-        self.logger.campaign("Opened campaign")
+        return orders
 
     async def close_campaign(self, campaign: Campaign, order_ids_to_cancel: list[str], order_requests: list[OrderRequest], kline: KlineEvent) -> None:
         self.logger.campaign("Closing campaign")
