@@ -40,8 +40,8 @@ class TradingSession:
         # current world
         self.kline = kline
         self.klines.append(kline)
-        self.current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
-        self.account_snapshot: AccountSnapshot | None = await self.execution_service.get_account_snapshot()
+        self.current_campaign_view = await self.execution_service.get_campaign_view(self.current_campaign)
+        self.account_snapshot = await self.execution_service.get_account_snapshot()
 
         # actual processing
         signal = self.strategy.on_kline(self.kline, self.klines, self.current_campaign_view, self.account_snapshot)
@@ -100,7 +100,34 @@ class TradingSession:
             self.logger.campaign("Close signal ignored: no current campaign")
             return
 
-        await self.execution_service.close_campaign(campaign=campaign, order_ids_to_cancel=signal.cancel_order_ids, order_requests=signal.order_requests, kline=kline)
+        campaign_view = self.current_campaign_view
+
+        if campaign_view is None:
+            raise RuntimeError("Current campaign view is not available")
+
+        self.logger.campaign("Closing campaign")
+        campaign.begin_closing()
+
+        canceled_orders, close_orders = await self.execution_service.cancel_and_submit_orders(
+            orders=list(campaign_view.orders),
+            order_ids_to_cancel=signal.cancel_order_ids,
+            order_requests=signal.order_requests,
+        )
+
+        self.logger.canceled_orders(canceled_orders)
+        self.logger.campaign(f"Orders canceled: {len(signal.cancel_order_ids)}")
+
+        self.logger.placed_orders(close_orders)
+
+        for order in close_orders:
+            if order.status == "FILLED" and order.order_type == "MARKET":
+                self.logger.fill_market_order(order, kline)
+
+        campaign.order_ids.extend([order.order_id for order in close_orders])
+        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
+
+        campaign.mark_closed()
+        self.logger.campaign("Closed campaign")
 
         campaign_view = await self.execution_service.get_campaign_view(campaign)
 

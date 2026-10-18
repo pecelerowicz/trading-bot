@@ -1,7 +1,8 @@
 from trading_bot.errors import (
     MarketOrderNotFullyFilledError,
     OrderCancellationNotCompletedError,
-    StrategySignalConflictError, UnexpectedOrderStateError,
+    StrategySignalConflictError,
+    UnexpectedOrderStateError,
 )
 from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.campaign import Campaign, CampaignView
@@ -45,23 +46,22 @@ class TradingExecutionService:
 
         return orders
 
-    async def close_campaign(self, campaign: Campaign, order_ids_to_cancel: list[str], order_requests: list[OrderRequest], kline: KlineEvent) -> None:
-        self.logger.campaign("Closing campaign")
+    async def cancel_and_submit_orders(
+        self,
+        orders: list[Order],
+        order_ids_to_cancel: list[str],
+        order_requests: list[OrderRequest],
+    ) -> tuple[list[Order], list[Order]]:
+        canceled_orders = await self._cancel_orders(
+            orders=orders,
+            order_ids_to_cancel=order_ids_to_cancel,
+        )
 
-        campaign.begin_closing()
+        submitted_orders = await self.place_orders(
+            order_requests=order_requests,
+        )
 
-        orders = await self._get_orders(campaign)
-
-        await self._cancel_orders(orders=list(orders), order_ids_to_cancel=order_ids_to_cancel)
-        self.logger.campaign(f"Orders canceled: {len(order_ids_to_cancel)}")
-
-        close_orders = await self._place_orders(order_requests=order_requests, kline=kline)
-        campaign.order_ids.extend([order.order_id for order in close_orders])
-        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
-
-        campaign.mark_closed()
-
-        self.logger.campaign("Closed campaign")
+        return canceled_orders, submitted_orders
 
     async def _get_orders(self, campaign: Campaign) -> tuple[Order, ...]:
         orders: list[Order] = []
@@ -71,22 +71,6 @@ class TradingExecutionService:
             orders.append(order)
 
         return tuple(orders)
-
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
-        orders: list[Order] = []
-
-        for order_request in order_requests:
-            order = await self.executor.place_order(order_request=order_request)
-            self._validate_placed_order(order)
-            orders.append(order)
-
-        self.logger.placed_orders(orders)
-
-        for order in orders:
-            if order.status == "FILLED" and order.order_type == "MARKET":
-                self.logger.fill_market_order(order, kline)
-
-        return orders
 
     def _validate_placed_order(self, order: Order) -> None:
         if order.order_type == "MARKET":
@@ -109,7 +93,7 @@ class TradingExecutionService:
 
         raise ValueError(f"Unsupported order type: {order.order_type}")
 
-    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> None:
+    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
         canceled_orders: list[Order] = []
 
         for order in orders:
@@ -135,4 +119,4 @@ class TradingExecutionService:
             if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
                 canceled_orders.append(canceled_order)
 
-        self.logger.canceled_orders(canceled_orders)
+        return canceled_orders
