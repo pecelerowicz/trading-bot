@@ -46,22 +46,33 @@ class TradingExecutionService:
 
         return orders
 
-    async def cancel_and_submit_orders(
-        self,
-        orders: list[Order],
-        order_ids_to_cancel: list[str],
-        order_requests: list[OrderRequest],
-    ) -> tuple[list[Order], list[Order]]:
-        canceled_orders = await self._cancel_orders(
-            orders=orders,
-            order_ids_to_cancel=order_ids_to_cancel,
-        )
+    async def cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
+        canceled_orders: list[Order] = []
 
-        submitted_orders = await self.place_orders(
-            order_requests=order_requests,
-        )
+        for order in orders:
+            if order.order_id not in order_ids_to_cancel:
+                continue
 
-        return canceled_orders, submitted_orders
+            previous_status = order.status
+            canceled_order = await self.executor.cancel_order(order.order_id)
+
+            if canceled_order.filled_quantity != order.filled_quantity:
+                raise StrategySignalConflictError(
+                    f"Order #{order.order_id} execution changed while applying the strategy signal: "
+                    f"status {order.status} -> {canceled_order.status}, "
+                    f"filled quantity {order.filled_quantity} -> {canceled_order.filled_quantity}"
+                )
+
+            if canceled_order.status != "CANCELED":
+                raise OrderCancellationNotCompletedError(
+                    f"Order #{order.order_id} was not canceled: "
+                    f"status={canceled_order.status}"
+                )
+
+            if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
+                canceled_orders.append(canceled_order)
+
+        return canceled_orders
 
     async def _get_orders(self, campaign: Campaign) -> tuple[Order, ...]:
         orders: list[Order] = []
@@ -92,31 +103,3 @@ class TradingExecutionService:
             return
 
         raise ValueError(f"Unsupported order type: {order.order_type}")
-
-    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> list[Order]:
-        canceled_orders: list[Order] = []
-
-        for order in orders:
-            if order.order_id not in order_ids_to_cancel:
-                continue
-
-            previous_status = order.status
-            canceled_order = await self.executor.cancel_order(order.order_id)
-
-            if canceled_order.filled_quantity != order.filled_quantity:
-                raise StrategySignalConflictError(
-                    f"Order #{order.order_id} execution changed while applying the strategy signal: "
-                    f"status {order.status} -> {canceled_order.status}, "
-                    f"filled quantity {order.filled_quantity} -> {canceled_order.filled_quantity}"
-                )
-
-            if canceled_order.status != "CANCELED":
-                raise OrderCancellationNotCompletedError(
-                    f"Order #{order.order_id} was not canceled: "
-                    f"status={canceled_order.status}"
-                )
-
-            if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
-                canceled_orders.append(canceled_order)
-
-        return canceled_orders

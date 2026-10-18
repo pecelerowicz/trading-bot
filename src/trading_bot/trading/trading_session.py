@@ -108,9 +108,12 @@ class TradingSession:
         self.logger.campaign("Closing campaign")
         campaign.begin_closing()
 
-        canceled_orders, close_orders = await self.execution_service.cancel_and_submit_orders(
+        canceled_orders = await self.execution_service.cancel_orders(
             orders=list(campaign_view.orders),
             order_ids_to_cancel=signal.cancel_order_ids,
+        )
+
+        close_orders = await self.execution_service.place_orders(
             order_requests=signal.order_requests,
         )
 
