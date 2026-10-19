@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from trading_bot.models.execution import Execution
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.models.campaign import Campaign, CampaignView
@@ -36,6 +37,71 @@ class TradingDebugLogger:
     def signal(self, signal_name: str) -> None:
         self._print("SIGNAL", signal_name, indent=1)
 
+    def execution(self, execution: Execution, kline: KlineEvent) -> None:
+        canceled_orders = [
+            cancellation.order
+            for cancellation in execution.cancellations
+            if cancellation.status == "SUCCESS"
+            and cancellation.order is not None
+        ]
+
+        placed_orders = [
+            placement.order
+            for placement in execution.placements
+            if placement.status == "SUCCESS"
+            and placement.order is not None
+        ]
+
+        self.canceled_orders(canceled_orders)
+        self.placed_orders(placed_orders)
+
+        for order in placed_orders:
+            if order.status == "FILLED" and order.order_type == "MARKET":
+                self.fill_market_order(order, kline)
+
+        for cancellation in execution.cancellations:
+            if cancellation.status == "SUCCESS":
+                continue
+
+            message = (
+                f"Cancel order #{cancellation.order_id}: "
+                f"{cancellation.status}"
+            )
+
+            if cancellation.order is not None:
+                message += (
+                    f" | {self._compact_order(cancellation.order)}"
+                )
+
+            self.order(message)
+
+        for placement in execution.placements:
+            if placement.status == "SUCCESS":
+                continue
+
+            order_request = placement.order_request
+
+            price = (
+                f"{order_request.price:.4f}"
+                if order_request.price is not None
+                else "-"
+            )
+
+            message = (
+                f"Place {order_request.side} "
+                f"{order_request.order_type}: "
+                f"{placement.status} | "
+                f"qty={order_request.quantity} | "
+                f"price={price}"
+            )
+
+            if placement.order is not None:
+                message += (
+                    f" | {self._compact_order(placement.order)}"
+                )
+
+            self.order(message)
+
     def campaign(self, message: str) -> None:
         self._print("CAMPAIGN", message, indent=1)
 
@@ -45,7 +111,11 @@ class TradingDebugLogger:
     def fill(self, message: str) -> None:
         self._print("FILL", message, indent=3)
 
-    def place_order(self, order_id: str, order_request: OrderRequest) -> None:
+    def place_order(
+        self,
+        order_id: str,
+        order_request: OrderRequest,
+    ) -> None:
         price = (
             f"{order_request.price:.4f}"
             if order_request.price is not None
@@ -118,7 +188,11 @@ class TradingDebugLogger:
             f"{order.side} {order.order_type}"
         )
 
-    def fill_market_order(self, order: Order, kline: KlineEvent) -> None:
+    def fill_market_order(
+        self,
+        order: Order,
+        kline: KlineEvent,
+    ) -> None:
         price = (
             f"{order.average_fill_price:.4f}"
             if order.average_fill_price is not None
@@ -132,7 +206,11 @@ class TradingDebugLogger:
             f"kline={kline.open_time.strftime('%H:%M')}"
         )
 
-    def fill_limit_order(self, order: Order, kline: KlineEvent) -> None:
+    def fill_limit_order(
+        self,
+        order: Order,
+        kline: KlineEvent,
+    ) -> None:
         price = (
             f"{order.average_fill_price:.4f}"
             if order.average_fill_price is not None
@@ -149,22 +227,54 @@ class TradingDebugLogger:
         )
 
     def campaign_summary(self, campaign: CampaignView) -> None:
-        filled = len([order for order in campaign.orders if order.status == "FILLED"])
-        canceled = len([order for order in campaign.orders if order.status == "CANCELED"])
-        venue_expired = len([order for order in campaign.orders if order.status == "VENUE_EXPIRED"])
+        filled = len([
+            order
+            for order in campaign.orders
+            if order.status == "FILLED"
+        ])
+
+        canceled = len([
+            order
+            for order in campaign.orders
+            if order.status == "CANCELED"
+        ])
+
+        venue_expired = len([
+            order
+            for order in campaign.orders
+            if order.status == "VENUE_EXPIRED"
+        ])
+
         active = len([
             order
             for order in campaign.orders
-            if order.status not in {"FILLED", "CANCELED", "VENUE_EXPIRED"}
+            if order.status not in {
+                "FILLED",
+                "CANCELED",
+                "VENUE_EXPIRED",
+            }
         ])
 
         status = campaign.state.value
         summary = campaign.execution_summary()
 
-        average_buy_price = (f"{summary.average_buy_price:.4f}" if summary.average_buy_price is not None else "-")
-        average_sell_price = (f"{summary.average_sell_price:.4f}" if summary.average_sell_price is not None else "-")
+        average_buy_price = (
+            f"{summary.average_buy_price:.4f}"
+            if summary.average_buy_price is not None
+            else "-"
+        )
 
-        self._print("CAMPAIGN SUMMARY", "", indent=1)
+        average_sell_price = (
+            f"{summary.average_sell_price:.4f}"
+            if summary.average_sell_price is not None
+            else "-"
+        )
+
+        self._print(
+            "CAMPAIGN SUMMARY",
+            "",
+            indent=1,
+        )
 
         self._detail(
             f"status={status} | "
@@ -211,7 +321,11 @@ class TradingDebugLogger:
             if campaign.is_closed
         ])
 
-        self._print("CAMPAIGNS HISTORY", "", indent=1)
+        self._print(
+            "CAMPAIGNS HISTORY",
+            "",
+            indent=1,
+        )
 
         self._detail(
             f"total={len(campaigns)} | "
@@ -225,8 +339,8 @@ class TradingDebugLogger:
         recent_campaigns = []
 
         for index, campaign in enumerate(
-                campaigns[-5:],
-                start=max(1, len(campaigns) - 4),
+            campaigns[-5:],
+            start=max(1, len(campaigns) - 4),
         ):
             status = campaign.state.value
 
@@ -237,15 +351,30 @@ class TradingDebugLogger:
 
         if recent_campaigns:
             self._detail(
-                "recent: " + " || ".join(recent_campaigns),
+                "recent: "
+                + " || ".join(recent_campaigns),
                 indent=2,
-                )
+            )
 
-    def _print(self, tag: str, message: str, indent: int = 0) -> None:
-        print(f"{self.INDENT * indent}[{tag:<6}] {message}")
+    def _print(
+        self,
+        tag: str,
+        message: str,
+        indent: int = 0,
+    ) -> None:
+        print(
+            f"{self.INDENT * indent}"
+            f"[{tag:<6}] {message}"
+        )
 
-    def _detail(self, message: str, indent: int = 2) -> None:
-        print(f"{self.INDENT * indent}{message}")
+    def _detail(
+        self,
+        message: str,
+        indent: int = 2,
+    ) -> None:
+        print(
+            f"{self.INDENT * indent}{message}"
+        )
 
     def _blank_line(self) -> None:
         print()
