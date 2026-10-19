@@ -5,6 +5,7 @@ from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
+from trading_bot.models.step_record import StepRecord
 from trading_bot.trading.signal import StrategySignal
 
 
@@ -136,3 +137,53 @@ class ThreeGreenPyramidSellStrategy:
                 )
 
         return StrategySignal.hold_campaign()
+
+    def create_signal2(
+        self,
+        kline: KlineEvent,
+        klines: list[KlineEvent],
+        account_snapshot: AccountSnapshot,
+        step_records: list[StepRecord],
+    ) -> StrategySignal:
+        if len(klines) < 3:
+            return StrategySignal.idle()
+
+        last_three = klines[-3:]
+        is_three_consecutive_green = all(
+            candle.close > candle.open for candle in last_three
+        )
+
+        if not is_three_consecutive_green:
+            return StrategySignal.idle()
+
+        current_close = kline.close
+        order_requests: list[OrderRequest] = []
+
+        for i in range(10):
+            price = current_close * (1 + i * Decimal("0.0002"))
+            order_requests.append(
+                OrderRequest(
+                    side="SELL",
+                    order_type="LIMIT",
+                    quantity=Decimal("0.1"),
+                    price=round(price, 2),
+                )
+            )
+
+        required_base = sum(
+            (
+                order_request.quantity
+                for order_request in order_requests
+            ),
+            Decimal("0"),
+        )
+
+        if not account_snapshot.has_free_balance(
+            self.instrument.base_asset,
+            required_base,
+        ):
+            return StrategySignal.idle()
+
+        return StrategySignal.open_campaign(
+            order_requests=order_requests,
+        )

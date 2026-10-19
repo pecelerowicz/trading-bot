@@ -39,7 +39,7 @@ def main():
 
     # # buy_limit_quantity
     # print("--- buy_limit_quantity ---")
-    # print(executor.buy_market_quantity("BTCUSDT", Decimal("0.5")))
+    print(executor.buy_market_quantity("BTCUSDT", Decimal("1.0")))
     # executor.sell_market_quantity("SOLUSDT", Decimal("6"))
     # executor.sell_market_quantity("PEPEUSDT", Decimal("18446"))
     # executor.sell_market_quantity("ONDOUSDT", Decimal("1313"))
@@ -55,7 +55,7 @@ def main():
 
     # get_balance
     print("--- get_balance ---")
-    print(executor.get_balance("SOL"))
+    print(executor.get_balance("BTC"))
     print(executor.get_balance("USDT"))
 
     # executor.cancel_order("BTCUSDT", 28647)
