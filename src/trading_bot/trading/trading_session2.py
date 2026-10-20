@@ -4,15 +4,15 @@ from trading_bot.models.step_record import StepRecord
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.strategy import Strategy
-from trading_bot.trading.trading_execution_service2 import TradingExecutionService2
+from trading_bot.trading.trading_execution_service import TradingExecutionService
 
 
-class TradingSession2:
+class TradingSession:
 
     def __init__(
         self,
         strategy: Strategy,
-        execution_service: TradingExecutionService2,
+        execution_service: TradingExecutionService,
         logger: TradingDebugLogger,
         reconciliation_reporter: PortfolioReconciliationReporter,
     ) -> None:

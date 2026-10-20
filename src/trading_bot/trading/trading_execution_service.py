@@ -20,7 +20,7 @@ from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.signal import StrategySignal
 
 
-class TradingExecutionService2:
+class TradingExecutionService:
 
     def __init__(self, executor: Executor, logger: TradingDebugLogger) -> None:
         self.executor = executor
