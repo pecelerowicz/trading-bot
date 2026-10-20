@@ -1,23 +1,32 @@
 from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.models.campaign import Campaign, CampaignView
+from trading_bot.models.step_record import StepRecord
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
-from trading_bot.trading.signal import SignalType, StrategySignal
+from trading_bot.trading.signal import SignalType
 from trading_bot.trading.strategy import Strategy
 from trading_bot.trading.trading_execution_service import TradingExecutionService
 
 
 class TradingSession:
 
-    def __init__(self, strategy: Strategy, execution_service: TradingExecutionService, logger: TradingDebugLogger, reconciliation_reporter: PortfolioReconciliationReporter) -> None:
+    def __init__(
+        self,
+        strategy: Strategy,
+        execution_service: TradingExecutionService,
+        logger: TradingDebugLogger,
+        reconciliation_reporter: PortfolioReconciliationReporter,
+    ) -> None:
         self.strategy = strategy
         self.execution_service = execution_service
         self.logger = logger
         self.reconciliation_reporter = reconciliation_reporter
+
         self.klines: list[KlineEvent] = []
-        self.campaigns: list[Campaign] = []
-        self.current_campaign: Campaign | None = None
+        self.account_snapshot: AccountSnapshot | None = None
+        self.order_state_snapshot: OrderStateSnapshot = OrderStateSnapshot(orders=())
+        self.step_records: list[StepRecord] = []
 
     async def handle_kline(self, kline: KlineEvent) -> None:
         try:
@@ -29,86 +38,41 @@ class TradingSession:
     async def _handle_kline(self, kline: KlineEvent) -> None:
         if not kline.is_closed:
             return
+        await self.execution_service.update_executor(kline)
 
         self.logger.candle(kline)
         self.klines.append(kline)
 
-        await self.execution_service.update_executor(kline)
+        self.account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
+        order_ids = self._get_active_order_ids()
+        self.order_state_snapshot = await self.execution_service.get_order_state_snapshot(order_ids)
 
-        signal = await self._get_strategy_signal(kline)
-        execution = await self._execute_strategy_signal(signal, kline)
-
-    async def _get_strategy_signal(self, kline: KlineEvent) -> StrategySignal | None:
-        current_campaign_view: CampaignView | None = await self.execution_service.get_campaign_view(self.current_campaign)
-        account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
-
-        return self.strategy.on_kline(kline=kline,
-                                      klines=self.klines,
-                                      current_campaign=current_campaign_view,
-                                      account_snapshot=account_snapshot)
-
-    async def _execute_strategy_signal(self, signal: StrategySignal | None, kline: KlineEvent) -> None:
-        if signal is None:
-            self.logger.signal("NoAction")
-            return
-
+        signal = self.strategy.create_signal(kline, self.klines, self.account_snapshot, self.order_state_snapshot, self.step_records)
         self.logger.signal(signal.signal_type.value)
 
-        match signal.signal_type:
-            case SignalType.OPEN:
-                await self._open_campaign(signal, kline)
+        execution = await self.execution_service.execute_signal(signal)
+        self.logger.execution(execution, kline)
 
-            case SignalType.CLOSE:
-                await self._close_campaign(signal, kline)
+        self.step_records.append(StepRecord(kline, signal, execution))
 
-            case _:
-                raise TypeError(f"Unsupported strategy signal type: {signal.signal_type}")
+    def _get_active_order_ids(self) -> list[str]:
+        if not self.step_records:
+            return []
 
-    async def _open_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
-        if self.current_campaign is not None:
-            self.logger.campaign("Open signal ignored: current campaign already exists")
-            return
+        if self.step_records[-1].signal.signal_type not in {SignalType.OPEN, SignalType.HOLD}:
+            return []
 
-        campaign = Campaign()
+        order_ids: list[str] = []
 
-        self.current_campaign = campaign
-        self.campaigns.append(campaign)
+        for record in reversed(self.step_records):
+            for placement in record.execution.placements:
+                if placement.order is not None and placement.order.order_id not in order_ids:
+                    order_ids.append(placement.order.order_id)
 
-        await self.reconciliation_reporter.on_campaign_opened(
-            campaign_number=len(self.campaigns),
-        )
+            if record.signal.signal_type == SignalType.OPEN:
+                break
 
-        await self.execution_service.open_campaign(campaign=campaign, order_requests=signal.order_requests, kline=kline)
-
-    async def _close_campaign(self, signal: StrategySignal, kline: KlineEvent) -> None:
-        campaign = self.current_campaign
-
-        if campaign is None:
-            self.logger.campaign("Close signal ignored: no current campaign")
-            return
-
-        await self.execution_service.close_campaign(campaign=campaign, order_ids_to_cancel=signal.cancel_order_ids, order_requests=signal.order_requests, kline=kline)
-
-        campaign_view = await self.execution_service.get_campaign_view(campaign)
-
-        self.logger.campaign_summary(campaign_view)
-        self.logger.campaigns_history(self.campaigns)
-
-        self.current_campaign = None
-
-        await self.reconciliation_reporter.on_campaign_closed(
-            campaign=campaign_view,
-        )
+        return order_ids
 
     def _require_recovery(self, error: Exception) -> None:
-        if self.current_campaign is None:
-            return
-
-        if self.current_campaign.is_closed:
-            return
-
-        self.current_campaign.require_recovery()
-        self.logger.campaign(
-            f"Recovery required in {self.current_campaign.state.value}: "
-            f"{type(error).__name__}: {error}"
-        )
+        pass

@@ -27,7 +27,8 @@ async def main():
 
         execution_service = TradingExecutionService(executor=executor, logger=logger)
         reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
-        trading_session = TradingSession(strategy=strategy, execution_service=execution_service, logger=logger, reconciliation_reporter=reconciliation_reporter)
+        trading_session = TradingSession(strategy=strategy, execution_service=execution_service, logger=logger,
+                                         reconciliation_reporter=reconciliation_reporter)
 
         app = TradingApp(
             market_data_source=market_data_source,

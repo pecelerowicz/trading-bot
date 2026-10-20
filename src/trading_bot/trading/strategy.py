@@ -1,17 +1,19 @@
 from typing import Protocol
 
 from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.kline_event import KlineEvent
-from trading_bot.models.campaign import CampaignView
+from trading_bot.models.step_record import StepRecord
 from trading_bot.trading.signal import StrategySignal
 
 
 class Strategy(Protocol):
-    def on_kline(
+    def create_signal(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],
-        current_campaign: CampaignView | None,
-        account_snapshot: AccountSnapshot
-    ) -> StrategySignal | None:
+        account_snapshot: AccountSnapshot,
+        order_state_snapshot: OrderStateSnapshot,
+        step_records: list[StepRecord],
+    ) -> StrategySignal:
         ...

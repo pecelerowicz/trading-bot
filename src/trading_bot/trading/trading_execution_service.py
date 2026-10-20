@@ -1,14 +1,23 @@
 from trading_bot.errors import (
-    MarketOrderNotFullyFilledError,
-    OrderCancellationNotCompletedError,
-    StrategySignalConflictError, UnexpectedOrderStateError,
+    OrderCancellationOutcomeUnknownError,
+    OrderCancellationRejectedError,
+    OrderNotFoundError,
+    OrderPlacementOutcomeUnknownError,
+    OrderPlacementRejectedError,
 )
 from trading_bot.models.account import AccountSnapshot
-from trading_bot.models.campaign import Campaign, CampaignView
+from trading_bot.models.campaign import OrderStateSnapshot
+from trading_bot.models.execution import (
+    Cancellation,
+    Execution,
+    OperationStatus,
+    Placement,
+)
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import Order, OrderRequest
 from trading_bot.ports.executor import Executor
 from trading_bot.trading.debug_logger import TradingDebugLogger
+from trading_bot.trading.signal import StrategySignal
 
 
 class TradingExecutionService:
@@ -23,115 +32,86 @@ class TradingExecutionService:
     async def get_account_snapshot(self) -> AccountSnapshot:
         return await self.executor.get_account_snapshot()
 
-    async def get_campaign_view(self, campaign: Campaign | None) -> CampaignView | None:
-        if campaign is None:
-            return None
-
-        orders = await self._get_orders(campaign)
-
-        return CampaignView(
-            state=campaign.state,
-            health=campaign.health,
-            orders=orders,
-        )
-
-    async def open_campaign(self, campaign: Campaign, order_requests: list[OrderRequest], kline: KlineEvent) -> None:
-        self.logger.campaign("Opening campaign")
-
-        orders = await self._place_orders(order_requests=order_requests, kline=kline)
-        campaign.order_ids = [order.order_id for order in orders]
-        campaign.mark_open()
-
-        self.logger.campaign("Opened campaign")
-
-    async def close_campaign(self, campaign: Campaign, order_ids_to_cancel: list[str], order_requests: list[OrderRequest], kline: KlineEvent) -> None:
-        self.logger.campaign("Closing campaign")
-
-        campaign.begin_closing()
-
-        orders = await self._get_orders(campaign)
-
-        await self._cancel_orders(orders=list(orders), order_ids_to_cancel=order_ids_to_cancel)
-        self.logger.campaign(f"Orders canceled: {len(order_ids_to_cancel)}")
-
-        close_orders = await self._place_orders(order_requests=order_requests, kline=kline)
-        campaign.order_ids.extend([order.order_id for order in close_orders])
-        self.logger.campaign(f"Close orders placed: {len(close_orders)}")
-
-        campaign.mark_closed()
-
-        self.logger.campaign("Closed campaign")
-
-    async def _get_orders(self, campaign: Campaign) -> tuple[Order, ...]:
+    async def get_order_state_snapshot(self, order_ids: list[str]) -> OrderStateSnapshot:
         orders: list[Order] = []
 
-        for order_id in campaign.order_ids:
+        for order_id in order_ids:
             order = await self.executor.get_order(order_id)
             orders.append(order)
 
-        return tuple(orders)
+        return OrderStateSnapshot(orders=tuple(orders))
 
-    async def _place_orders(self, order_requests: list[OrderRequest], kline: KlineEvent) -> list[Order]:
-        orders: list[Order] = []
+    async def execute_signal(self, signal: StrategySignal) -> Execution:
+        cancellations: list[Cancellation] = []
+        placements: list[Placement] = []
 
-        for order_request in order_requests:
-            order = await self.executor.place_order(order_request=order_request)
-            self._validate_placed_order(order)
-            orders.append(order)
+        for index, order_id in enumerate(signal.cancel_order_ids):
+            cancellation = await self._execute_cancellation(order_id)
+            cancellations.append(cancellation)
 
-        self.logger.placed_orders(orders)
+            if cancellation.status != "SUCCESS":
+                remaining_order_ids = signal.cancel_order_ids[index + 1:]
 
-        for order in orders:
-            if order.status == "FILLED" and order.order_type == "MARKET":
-                self.logger.fill_market_order(order, kline)
+                for remaining_order_id in remaining_order_ids:
+                    cancellations.append(Cancellation(order_id=remaining_order_id, status="NOT_EXECUTED"))
 
-        return orders
+                for order_request in signal.order_requests:
+                    placements.append(Placement(order_request=order_request, status="NOT_EXECUTED"))
 
-    def _validate_placed_order(self, order: Order) -> None:
+                return Execution(cancellations=tuple(cancellations), placements=tuple(placements))
+
+        for index, order_request in enumerate(signal.order_requests):
+            placement = await self._execute_placement(order_request)
+            placements.append(placement)
+
+            if placement.status != "SUCCESS":
+                remaining_order_requests = signal.order_requests[index + 1:]
+
+                for remaining_order_request in remaining_order_requests:
+                    placements.append(Placement(order_request=remaining_order_request, status="NOT_EXECUTED"))
+
+                return Execution(cancellations=tuple(cancellations), placements=tuple(placements))
+
+        return Execution(cancellations=tuple(cancellations), placements=tuple(placements))
+
+    async def _execute_cancellation(self, order_id: str) -> Cancellation:
+        try:
+            order = await self.executor.cancel_order(order_id)
+
+        except (OrderNotFoundError, OrderCancellationRejectedError):
+            return Cancellation(order_id=order_id, status="FAILURE")
+
+        except OrderCancellationOutcomeUnknownError:
+            return Cancellation(order_id=order_id, status="UNKNOWN")
+
+        if order.status != "CANCELED":
+            return Cancellation(order_id=order_id, status="UNEXPECTED_RESULT", order=order)
+
+        return Cancellation(order_id=order_id, status="SUCCESS", order=order)
+
+    async def _execute_placement(self, order_request: OrderRequest) -> Placement:
+        try:
+            order = await self.executor.place_order(order_request)
+
+        except OrderPlacementRejectedError:
+            return Placement(order_request=order_request, status="FAILURE")
+
+        except OrderPlacementOutcomeUnknownError:
+            return Placement(order_request=order_request, status="UNKNOWN")
+
+        return Placement(order_request=order_request, status=self._placement_status(order), order=order)
+
+    def _placement_status(self, order: Order) -> OperationStatus:
         if order.order_type == "MARKET":
-            if order.status != "FILLED":
-                raise MarketOrderNotFullyFilledError(
-                    f"Market order #{order.order_id} was not fully filled: "
-                    f"status={order.status}"
-                )
+            if order.status == "FILLED":
+                return "SUCCESS"
 
-            return
+            return "UNEXPECTED_RESULT"
 
         if order.order_type == "LIMIT":
-            if order.status not in {"NEW", "PARTIALLY_FILLED", "FILLED"}:
-                raise UnexpectedOrderStateError(
-                    f"Limit order #{order.order_id} returned an unexpected state "
-                    f"after placement: status={order.status}"
-                )
+            if order.status in {"NEW", "PARTIALLY_FILLED", "FILLED"}:
+                return "SUCCESS"
 
-            return
+            return "UNEXPECTED_RESULT"
 
-        raise ValueError(f"Unsupported order type: {order.order_type}")
-
-    async def _cancel_orders(self, orders: list[Order], order_ids_to_cancel: list[str]) -> None:
-        canceled_orders: list[Order] = []
-
-        for order in orders:
-            if order.order_id not in order_ids_to_cancel:
-                continue
-
-            previous_status = order.status
-            canceled_order = await self.executor.cancel_order(order.order_id)
-
-            if canceled_order.filled_quantity != order.filled_quantity:
-                raise StrategySignalConflictError(
-                    f"Order #{order.order_id} execution changed while applying the strategy signal: "
-                    f"status {order.status} -> {canceled_order.status}, "
-                    f"filled quantity {order.filled_quantity} -> {canceled_order.filled_quantity}"
-                )
-
-            if canceled_order.status != "CANCELED":
-                raise OrderCancellationNotCompletedError(
-                    f"Order #{order.order_id} was not canceled: "
-                    f"status={canceled_order.status}"
-                )
-
-            if previous_status != "CANCELED" and canceled_order.status == "CANCELED":
-                canceled_orders.append(canceled_order)
-
-        self.logger.canceled_orders(canceled_orders)
+        return "UNEXPECTED_RESULT"
