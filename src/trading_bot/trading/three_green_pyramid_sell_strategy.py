@@ -15,10 +15,8 @@ class ThreeGreenPyramidSellStrategy:
         self.instrument = instrument
 
     def create_signal(self, kline: KlineEvent, klines: list[KlineEvent], account_snapshot: AccountSnapshot,
-                      step_records: list[StepRecord]) -> StrategySignal:
+                      order_state_snapshot: OrderStateSnapshot, step_records: list[StepRecord]) -> StrategySignal:
         if self._is_active(step_records):
-            order_state_snapshot = self._get_order_state_snapshot(step_records)
-
             return self._on_active_campaign(kline=kline, klines=klines, order_state_snapshot=order_state_snapshot,
                                             account_snapshot=account_snapshot)
 
@@ -93,14 +91,3 @@ class ThreeGreenPyramidSellStrategy:
             return StrategySignal.idle()
 
         return StrategySignal.open_campaign(order_requests=order_requests)
-
-    def _get_order_state_snapshot(self, step_records: list[StepRecord]) -> OrderStateSnapshot:
-        for record in reversed(step_records):
-            if record.signal.signal_type != SignalType.OPEN:
-                continue
-
-            orders = [placement.order for placement in record.execution.placements if placement.order is not None]
-
-            return OrderStateSnapshot(orders=tuple(orders))
-
-        return OrderStateSnapshot(orders=())

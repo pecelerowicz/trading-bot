@@ -1,6 +1,7 @@
 from typing import Protocol
 
 from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.step_record import StepRecord
 from trading_bot.trading.signal import StrategySignal
@@ -12,6 +13,7 @@ class Strategy(Protocol):
         kline: KlineEvent,
         klines: list[KlineEvent],
         account_snapshot: AccountSnapshot,
+        order_state_snapshot: OrderStateSnapshot,
         step_records: list[StepRecord],
     ) -> StrategySignal:
         ...

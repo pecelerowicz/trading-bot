@@ -1,8 +1,10 @@
 from trading_bot.models.account import AccountSnapshot
+from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.step_record import StepRecord
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
+from trading_bot.trading.signal import SignalType
 from trading_bot.trading.strategy import Strategy
 from trading_bot.trading.trading_execution_service import TradingExecutionService
 
@@ -23,6 +25,7 @@ class TradingSession:
 
         self.klines: list[KlineEvent] = []
         self.account_snapshot: AccountSnapshot | None = None
+        self.order_state_snapshot: OrderStateSnapshot = OrderStateSnapshot(orders=())
         self.step_records: list[StepRecord] = []
 
     async def handle_kline(self, kline: KlineEvent) -> None:
@@ -41,14 +44,35 @@ class TradingSession:
         self.klines.append(kline)
 
         self.account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
+        order_ids = self._get_active_order_ids()
+        self.order_state_snapshot = await self.execution_service.get_order_state_snapshot(order_ids)
 
-        signal = self.strategy.create_signal(kline, self.klines, self.account_snapshot, self.step_records)
+        signal = self.strategy.create_signal(kline, self.klines, self.account_snapshot, self.order_state_snapshot, self.step_records)
         self.logger.signal(signal.signal_type.value)
 
         execution = await self.execution_service.execute_signal(signal)
         self.logger.execution(execution, kline)
 
         self.step_records.append(StepRecord(kline, signal, execution))
+
+    def _get_active_order_ids(self) -> list[str]:
+        if not self.step_records:
+            return []
+
+        if self.step_records[-1].signal.signal_type not in {SignalType.OPEN, SignalType.HOLD}:
+            return []
+
+        order_ids: list[str] = []
+
+        for record in reversed(self.step_records):
+            for placement in record.execution.placements:
+                if placement.order is not None and placement.order.order_id not in order_ids:
+                    order_ids.append(placement.order.order_id)
+
+            if record.signal.signal_type == SignalType.OPEN:
+                break
+
+        return order_ids
 
     def _require_recovery(self, error: Exception) -> None:
         pass
