@@ -8,7 +8,7 @@ from trading_bot.trading.trading_app import TradingApp
 from trading_bot.config import load_app_config
 from trading_bot.models.instrument import Instrument
 from trading_bot.trading.trading_execution_service import TradingExecutionService
-from trading_bot.trading.trading_session2 import TradingSession
+from trading_bot.trading.trading_session import TradingSession
 
 
 async def main():

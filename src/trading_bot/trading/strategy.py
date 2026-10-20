@@ -7,7 +7,7 @@ from trading_bot.trading.signal import StrategySignal
 
 
 class Strategy(Protocol):
-    def create_signal2(
+    def create_signal(
         self,
         kline: KlineEvent,
         klines: list[KlineEvent],

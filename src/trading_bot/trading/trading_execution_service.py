@@ -41,7 +41,7 @@ class TradingExecutionService:
 
         return OrderStateSnapshot(orders=tuple(orders))
 
-    async def execute_signal(self, signal: StrategySignal, kline: KlineEvent) -> Execution:
+    async def execute_signal(self, signal: StrategySignal) -> Execution:
         cancellations: list[Cancellation] = []
         placements: list[Placement] = []
 

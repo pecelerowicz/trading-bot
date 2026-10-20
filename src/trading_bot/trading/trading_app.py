@@ -1,5 +1,5 @@
 from trading_bot.ports.market_data_source import MarketDataSource
-from trading_bot.trading.trading_session2 import TradingSession
+from trading_bot.trading.trading_session import TradingSession
 
 
 class TradingApp:

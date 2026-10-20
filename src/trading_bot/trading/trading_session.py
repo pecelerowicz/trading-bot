@@ -42,10 +42,10 @@ class TradingSession:
 
         self.account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
 
-        signal = self.strategy.create_signal2(kline, self.klines, self.account_snapshot, self.step_records)
+        signal = self.strategy.create_signal(kline, self.klines, self.account_snapshot, self.step_records)
         self.logger.signal(signal.signal_type.value)
 
-        execution = await self.execution_service.execute_signal(signal, kline)
+        execution = await self.execution_service.execute_signal(signal)
         self.logger.execution(execution, kline)
 
         self.step_records.append(StepRecord(kline, signal, execution))
