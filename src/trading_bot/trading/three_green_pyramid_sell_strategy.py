@@ -5,7 +5,7 @@ from trading_bot.models.campaign import OrderStateSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
-from trading_bot.models.step_record import StepRecord
+from trading_bot.models.step_record import KlineRecord
 from trading_bot.trading.signal import SignalType, StrategySignal
 
 
@@ -15,14 +15,14 @@ class ThreeGreenPyramidSellStrategy:
         self.instrument = instrument
 
     def create_signal(self, kline: KlineEvent, klines: list[KlineEvent], account_snapshot: AccountSnapshot,
-                      order_state_snapshot: OrderStateSnapshot, step_records: list[StepRecord]) -> StrategySignal:
+                      order_state_snapshot: OrderStateSnapshot, step_records: list[KlineRecord]) -> StrategySignal:
         if self._is_active(step_records):
             return self._on_active_campaign(kline=kline, klines=klines, order_state_snapshot=order_state_snapshot,
                                             account_snapshot=account_snapshot)
 
         return self._on_inactive_campaign(kline=kline, klines=klines, account_snapshot=account_snapshot)
 
-    def _is_active(self, step_records: list[StepRecord]) -> bool:
+    def _is_active(self, step_records: list[KlineRecord]) -> bool:
         if not step_records:
             return False
 

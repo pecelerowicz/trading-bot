@@ -6,7 +6,7 @@ from trading_bot.trading.signal import StrategySignal
 
 
 @dataclass(frozen=True)
-class StepRecord:
+class KlineRecord:
     kline: KlineEvent
     signal: StrategySignal
     execution: Execution
