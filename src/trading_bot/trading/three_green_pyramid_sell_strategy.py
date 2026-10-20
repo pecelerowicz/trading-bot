@@ -6,34 +6,13 @@ from trading_bot.models.instrument import Instrument
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.order import OrderRequest
 from trading_bot.models.step_record import StepRecord
-from trading_bot.trading.signal import StrategySignal
+from trading_bot.trading.signal import SignalType, StrategySignal
 
 
 class ThreeGreenPyramidSellStrategy:
 
     def __init__(self, instrument: Instrument) -> None:
         self.instrument = instrument
-
-    def create_signal(
-        self,
-        kline: KlineEvent,
-        klines: list[KlineEvent],
-        order_state_snapshot: OrderStateSnapshot | None,
-        account_snapshot: AccountSnapshot,
-    ) -> StrategySignal:
-        if order_state_snapshot is None:
-            return self._on_no_campaign(
-                kline=kline,
-                klines=klines,
-                account_snapshot=account_snapshot,
-            )
-
-        return self._on_open_campaign(
-            kline=kline,
-            klines=klines,
-            order_state_snapshot=order_state_snapshot,
-            account_snapshot=account_snapshot,
-        )
 
     def _on_no_campaign(
         self,
@@ -145,45 +124,45 @@ class ThreeGreenPyramidSellStrategy:
         account_snapshot: AccountSnapshot,
         step_records: list[StepRecord],
     ) -> StrategySignal:
-        if len(klines) < 3:
-            return StrategySignal.idle()
+        if self._is_active(step_records):
+            order_state_snapshot = self._get_order_state_snapshot(step_records)
 
-        last_three = klines[-3:]
-        is_three_consecutive_green = all(
-            candle.close > candle.open for candle in last_three
-        )
-
-        if not is_three_consecutive_green:
-            return StrategySignal.idle()
-
-        current_close = kline.close
-        order_requests: list[OrderRequest] = []
-
-        for i in range(10):
-            price = current_close * (1 + i * Decimal("0.0002"))
-            order_requests.append(
-                OrderRequest(
-                    side="SELL",
-                    order_type="LIMIT",
-                    quantity=Decimal("0.1"),
-                    price=round(price, 2),
-                )
+            return self._on_open_campaign(
+                kline=kline,
+                klines=klines,
+                order_state_snapshot=order_state_snapshot,
+                account_snapshot=account_snapshot,
             )
 
-        required_base = sum(
-            (
-                order_request.quantity
-                for order_request in order_requests
-            ),
-            Decimal("0"),
+        return self._on_no_campaign(
+            kline=kline,
+            klines=klines,
+            account_snapshot=account_snapshot,
         )
 
-        if not account_snapshot.has_free_balance(
-            self.instrument.base_asset,
-            required_base,
-        ):
-            return StrategySignal.idle()
+    def _is_active(self, step_records: list[StepRecord]) -> bool:
+        if not step_records:
+            return False
 
-        return StrategySignal.open_campaign(
-            order_requests=order_requests,
-        )
+        return step_records[-1].signal.signal_type in {
+            SignalType.OPEN,
+            SignalType.HOLD,
+        }
+
+    def _get_order_state_snapshot(
+        self,
+        step_records: list[StepRecord],
+    ) -> OrderStateSnapshot:
+        for record in reversed(step_records):
+            if record.signal.signal_type != SignalType.OPEN:
+                continue
+
+            orders = [
+                placement.order
+                for placement in record.execution.placements
+                if placement.order is not None
+            ]
+
+            return OrderStateSnapshot(orders=tuple(orders))
+
+        return OrderStateSnapshot(orders=())

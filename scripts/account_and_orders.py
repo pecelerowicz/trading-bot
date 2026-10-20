@@ -39,7 +39,7 @@ def main():
 
     # # buy_limit_quantity
     # print("--- buy_limit_quantity ---")
-    print(executor.buy_market_quantity("BTCUSDT", Decimal("1.0")))
+    # print(executor.buy_market_quantity("BTCUSDT", Decimal("0.2")))
     # executor.sell_market_quantity("SOLUSDT", Decimal("6"))
     # executor.sell_market_quantity("PEPEUSDT", Decimal("18446"))
     # executor.sell_market_quantity("ONDOUSDT", Decimal("1313"))
@@ -58,11 +58,14 @@ def main():
     print(executor.get_balance("BTC"))
     print(executor.get_balance("USDT"))
 
-    # executor.cancel_order("BTCUSDT", 28647)
-    # executor.cancel_order("BTCUSDT", 28648)
-    # executor.cancel_order("BTCUSDT", 28649)
-    # executor.cancel_order("BTCUSDT", 28650)
-    # executor.cancel_order("BTCUSDT", 28652)
+    # executor.cancel_order("BTCUSDT", 4792942)
+    # executor.cancel_order("BTCUSDT", 4792944)
+    # executor.cancel_order("BTCUSDT", 4792946)
+    # executor.cancel_order("BTCUSDT", 4792948)
+    # executor.cancel_order("BTCUSDT", 4792950)
+    # executor.cancel_order("BTCUSDT", 4792951)
+    # executor.cancel_order("BTCUSDT", 4792952)
+    # executor.cancel_order("BTCUSDT", 4792953)
 
 if __name__ == "__main__":
     main()
