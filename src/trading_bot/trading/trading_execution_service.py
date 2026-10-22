@@ -6,7 +6,7 @@ from trading_bot.errors import (
     OrderPlacementRejectedError,
 )
 from trading_bot.models.account import AccountSnapshot
-from trading_bot.models.campaign import OrderStateSnapshot
+from trading_bot.models.order_state import OrderStateSnapshot
 from trading_bot.models.execution import (
     Cancellation,
     Execution,
