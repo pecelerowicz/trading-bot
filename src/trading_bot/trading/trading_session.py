@@ -43,8 +43,12 @@ class TradingSession:
         self.logger.candle(kline)
         self.klines.append(kline)
 
+        previous_record = self.kline_records[-1] if self.kline_records else None
+
         self.account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
         self.order_state_snapshot: OrderStateSnapshot = await self._get_order_state_snapshot()
+
+        self._log_order_state_changes(previous_record)
 
         signal = self.strategy.create_signal(kline, self.klines, self.account_snapshot,
                                              self.order_state_snapshot, self.kline_records)
@@ -53,7 +57,7 @@ class TradingSession:
         execution = await self.execution_service.execute_signal(signal)
         self.logger.execution(execution, kline)
 
-        self.kline_records.append(KlineRecord(kline, signal, execution))
+        self.kline_records.append(KlineRecord(kline, self.order_state_snapshot, signal, execution))
 
     async def _get_order_state_snapshot(self) -> OrderStateSnapshot:
         if not self.kline_records:
@@ -72,6 +76,33 @@ class TradingSession:
             if record.signal.signal_type == SignalType.OPEN:
                 break
         return await self.execution_service.get_order_state_snapshot(order_ids)
+
+    def _log_order_state_changes(self, previous_record: KlineRecord | None) -> None:
+        if previous_record is None:
+            return
+
+        previous_orders = {order.order_id: order for order in previous_record.order_state_snapshot.orders}
+
+        for cancellation in previous_record.execution.cancellations:
+            if cancellation.order is not None:
+                previous_orders[cancellation.order.order_id] = cancellation.order
+
+        for placement in previous_record.execution.placements:
+            if placement.order is not None:
+                previous_orders[placement.order.order_id] = placement.order
+
+        for order in self.order_state_snapshot.orders:
+            previous_order = previous_orders.get(order.order_id)
+
+            if previous_order is None:
+                continue
+
+            if previous_order.status != order.status or previous_order.filled_quantity != order.filled_quantity:
+                self.logger.order(
+                    f"Order #{order.order_id} changed: "
+                    f"status {previous_order.status} -> {order.status}, "
+                    f"filled {previous_order.filled_quantity} -> {order.filled_quantity}"
+                )
 
     def _require_recovery(self, error: Exception) -> None:
         pass
