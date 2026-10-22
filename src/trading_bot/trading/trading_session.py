@@ -1,5 +1,5 @@
 from trading_bot.models.account import AccountSnapshot
-from trading_bot.models.campaign import OrderStateSnapshot
+from trading_bot.models.order_state import OrderStateSnapshot
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.models.step_record import KlineRecord
 from trading_bot.trading.debug_logger import TradingDebugLogger

@@ -6,7 +6,7 @@ from trading_bot.models.account import AccountSnapshot
 from trading_bot.models.instrument import Instrument
 from trading_bot.models.order import Order
 from trading_bot.ports.executor import Executor
-from trading_bot.models.campaign import CampaignView
+from trading_bot.models.order_state import OrderStateSnapshot
 
 
 class PortfolioReconciliationReporter:
@@ -26,13 +26,13 @@ class PortfolioReconciliationReporter:
         self.current_campaign_number = campaign_number
         self.account_before = await self.executor.get_account_snapshot()
 
-    async def on_campaign_closed(self, campaign: CampaignView) -> None:
+    async def on_campaign_closed(self, order_state_snapshot: OrderStateSnapshot) -> None:
         if self.current_campaign_number is None or self.account_before is None:
             raise RuntimeError("Missing opening snapshot for current campaign")
 
         campaign_number = self.current_campaign_number
         account_after = await self.executor.get_account_snapshot()
-        summary = campaign.execution_summary()
+        summary = order_state_snapshot.fill_summary()
 
         base_before = self.account_before.get_balance(self.instrument.base_asset).total
         base_after = account_after.get_balance(self.instrument.base_asset).total
@@ -80,10 +80,10 @@ class PortfolioReconciliationReporter:
             "[2] CAMPAIGN — CALCULATED FROM ORDER EXECUTIONS",
             "",
             "    EXECUTED ORDERS",
-            *self._executed_order_lines(campaign.orders),
+            *self._executed_order_lines(order_state_snapshot.orders),
             "",
             "    NON-EXECUTED ORDERS",
-            *self._non_executed_order_lines(campaign.orders),
+            *self._non_executed_order_lines(order_state_snapshot.orders),
             "",
             "    CAMPAIGN DELTA CALCULATED FROM ORDERS",
             f"        {self.instrument.base_asset:<5}= {summary.net_base_delta:+.8f}",

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from trading_bot.models.campaign import OrderStateSnapshot
+from trading_bot.models.order_state import OrderStateSnapshot
 from trading_bot.models.execution import Execution
 from trading_bot.models.kline_event import KlineEvent
 from trading_bot.trading.signal import StrategySignal
