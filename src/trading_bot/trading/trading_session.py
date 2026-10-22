@@ -23,6 +23,7 @@ class TradingSession:
         self.logger = logger
         self.reconciliation_reporter = reconciliation_reporter
 
+        self.current_kline: KlineEvent | None = None
         self.klines: list[KlineEvent] = []
         self.kline_records: list[KlineRecord] = []
         self.account_snapshot: AccountSnapshot | None = None
@@ -38,26 +39,26 @@ class TradingSession:
     async def _handle_kline(self, kline: KlineEvent) -> None:
         if not kline.is_closed:
             return
-        await self.execution_service.update_executor(kline)
+        self.current_kline = kline
+        self.logger.candle(self.current_kline)
 
-        self.logger.candle(kline)
-        self.klines.append(kline)
+        await self.execution_service.update_executor(self.current_kline)
 
-        previous_record = self.kline_records[-1] if self.kline_records else None
+        self.klines.append(self.current_kline)
+
+        self.order_state_snapshot: OrderStateSnapshot = await self._get_order_state_snapshot()
+        self._log_order_state_changes()
 
         self.account_snapshot: AccountSnapshot = await self.execution_service.get_account_snapshot()
-        self.order_state_snapshot: OrderStateSnapshot = await self._get_order_state_snapshot()
 
-        self._log_order_state_changes(previous_record)
-
-        signal = self.strategy.create_signal(kline, self.klines, self.account_snapshot,
+        signal = self.strategy.create_signal(self.current_kline, self.klines, self.account_snapshot,
                                              self.order_state_snapshot, self.kline_records)
         self.logger.signal(signal.signal_type.value)
 
         execution = await self.execution_service.execute_signal(signal)
-        self.logger.execution(execution, kline)
+        self.logger.execution(execution, self.current_kline)
 
-        self.kline_records.append(KlineRecord(kline, self.order_state_snapshot, signal, execution))
+        self.kline_records.append(KlineRecord(self.current_kline, self.order_state_snapshot, signal, execution))
 
     async def _get_order_state_snapshot(self) -> OrderStateSnapshot:
         if not self.kline_records:
@@ -77,9 +78,11 @@ class TradingSession:
                 break
         return await self.execution_service.get_order_state_snapshot(order_ids)
 
-    def _log_order_state_changes(self, previous_record: KlineRecord | None) -> None:
-        if previous_record is None:
+    def _log_order_state_changes(self) -> None:
+        if not self.kline_records or self.order_state_snapshot is None:
             return
+
+        previous_record = self.kline_records[-1]
 
         previous_orders = {order.order_id: order for order in previous_record.order_state_snapshot.orders}
 
