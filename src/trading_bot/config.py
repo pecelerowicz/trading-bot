@@ -5,27 +5,40 @@ from dotenv import load_dotenv
 
 
 @dataclass(frozen=True)
-class AppConfig:
-    market_data_source: str
-    executor: str
+class InstrumentConfig:
     symbol: str
     base_asset: str
     quote_asset: str
+
+
+@dataclass(frozen=True)
+class MarketDataConfig:
+    market_data_source: str
     interval: str
-    paper_initial_base_balance: Decimal
-    paper_initial_quote_balance: Decimal
-
-    binance_api_key_testnet: str | None = None
-    binance_api_secret_testnet: str | None = None
-    binance_api_key_production: str | None = None
-    binance_api_secret_production: str | None = None
-
     replay_initial_date: str | None = None
     replay_final_date: str | None = None
     replay_delay_seconds: float | None = None
 
 
-def load_app_config() -> AppConfig:
+@dataclass(frozen=True)
+class ExecutorConfig:
+    executor: str
+    paper_initial_base_balance: Decimal
+    paper_initial_quote_balance: Decimal
+    binance_api_key_testnet: str | None = None
+    binance_api_secret_testnet: str | None = None
+    binance_api_key_production: str | None = None
+    binance_api_secret_production: str | None = None
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    instrument: InstrumentConfig
+    market_data: MarketDataConfig
+    executor: ExecutorConfig
+
+
+def load_runtime_config() -> RuntimeConfig:
     load_dotenv()
 
     market_data_source = os.getenv("MARKET_DATA_SOURCE")
@@ -43,20 +56,26 @@ def load_app_config() -> AppConfig:
     if market_data_source == "binance_testnet" and executor == "binance_production":
         raise ValueError("Binance production executor cannot use Binance testnet market data")
 
-    return AppConfig(
-        market_data_source=market_data_source,
-        executor=executor,
-        symbol=os.getenv("SYMBOL"),
-        base_asset=os.getenv("BASE_ASSET"),
-        quote_asset=os.getenv("QUOTE_ASSET"),
-        interval=os.getenv("INTERVAL"),
-        paper_initial_base_balance=Decimal(os.getenv("PAPER_INITIAL_BASE_BALANCE", "0")),
-        paper_initial_quote_balance=Decimal(os.getenv("PAPER_INITIAL_QUOTE_BALANCE", "0")),
-        binance_api_key_testnet=os.getenv("BINANCE_API_KEY_TESTNET"),
-        binance_api_secret_testnet=os.getenv("BINANCE_API_SECRET_TESTNET"),
-        binance_api_key_production=os.getenv("BINANCE_API_KEY_PRODUCTION"),
-        binance_api_secret_production=os.getenv("BINANCE_API_SECRET_PRODUCTION"),
-        replay_initial_date=os.getenv("REPLAY_INITIAL_DATE"),
-        replay_final_date=os.getenv("REPLAY_FINAL_DATE"),
-        replay_delay_seconds=float(os.getenv("REPLAY_DELAY_SECONDS", "0")),
+    return RuntimeConfig(
+        instrument=InstrumentConfig(
+            symbol=os.getenv("SYMBOL"),
+            base_asset=os.getenv("BASE_ASSET"),
+            quote_asset=os.getenv("QUOTE_ASSET"),
+        ),
+        market_data=MarketDataConfig(
+            market_data_source=market_data_source,
+            interval=os.getenv("INTERVAL"),
+            replay_initial_date=os.getenv("REPLAY_INITIAL_DATE"),
+            replay_final_date=os.getenv("REPLAY_FINAL_DATE"),
+            replay_delay_seconds=float(os.getenv("REPLAY_DELAY_SECONDS", "0")),
+        ),
+        executor=ExecutorConfig(
+            executor=executor,
+            paper_initial_base_balance=Decimal(os.getenv("PAPER_INITIAL_BASE_BALANCE", "0")),
+            paper_initial_quote_balance=Decimal(os.getenv("PAPER_INITIAL_QUOTE_BALANCE", "0")),
+            binance_api_key_testnet=os.getenv("BINANCE_API_KEY_TESTNET"),
+            binance_api_secret_testnet=os.getenv("BINANCE_API_SECRET_TESTNET"),
+            binance_api_key_production=os.getenv("BINANCE_API_KEY_PRODUCTION"),
+            binance_api_secret_production=os.getenv("BINANCE_API_SECRET_PRODUCTION"),
+        ),
     )

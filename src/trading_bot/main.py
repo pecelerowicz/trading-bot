@@ -5,16 +5,17 @@ from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import PortfolioReconciliationReporter
 from trading_bot.trading.three_green_pyramid_sell_strategy import ThreeGreenPyramidSellStrategy
 from trading_bot.trading.trading_app import TradingApp
-from trading_bot.config import load_app_config
+from trading_bot.config import load_runtime_config
 from trading_bot.models.instrument import Instrument
 from trading_bot.trading.trading_execution_service import TradingExecutionService
 from trading_bot.trading.trading_session import TradingSession
 
 
 async def main():
-    app_config = load_app_config()
+    runtime_config = load_runtime_config()
 
-    instrument = Instrument(symbol=app_config.symbol, base_asset=app_config.base_asset, quote_asset=app_config.quote_asset)
+    instrument = Instrument(symbol=runtime_config.instrument.symbol, base_asset=runtime_config.instrument.base_asset,
+                            quote_asset=runtime_config.instrument.quote_asset)
     strategy = ThreeGreenPyramidSellStrategy(instrument=instrument)
     logger = TradingDebugLogger()
 
@@ -22,8 +23,10 @@ async def main():
     executor_client = None
 
     try:
-        market_data_source, market_data_client = await build_market_data_source(app_config=app_config)
-        executor, executor_client = await build_executor(app_config=app_config, instrument=instrument, logger=logger)
+        market_data_source, market_data_client = await build_market_data_source(market_data_config=runtime_config.market_data,
+                                                                                instrument=instrument)
+        executor, executor_client = await build_executor(executor_config=runtime_config.executor, instrument=instrument,
+                                                         logger=logger)
 
         execution_service = TradingExecutionService(executor=executor, logger=logger)
         reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
