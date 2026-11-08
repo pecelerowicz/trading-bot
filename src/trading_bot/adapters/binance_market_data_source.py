@@ -1,6 +1,6 @@
 from binance import AsyncClient, BinanceSocketManager
 
-from trading_bot.adapters.market_data.binance.mappers.ws_kline_mapper import map_ws_kline
+from trading_bot.adapters.binance_ws_kline_mapper import map_ws_kline
 
 
 class BinanceMarketDataSource:

@@ -2,10 +2,10 @@ from decimal import Decimal
 
 from binance import AsyncClient
 
-from trading_bot.adapters.executor.binance.binance_executor import BinanceExecutor
-from trading_bot.adapters.executor.paper.paper_executor import PaperExecutor
-from trading_bot.adapters.market_data.binance.data_live.stream import BinanceMarketDataSource
-from trading_bot.adapters.market_data.binance.data_replay.stream import BinanceReplayMarketDataSource
+from trading_bot.adapters.binance_executor import BinanceExecutor
+from trading_bot.adapters.binance_market_data_source import BinanceMarketDataSource
+from trading_bot.adapters.binance_replay_market_data_source import BinanceReplayMarketDataSource
+from trading_bot.adapters.paper_executor import PaperExecutor
 from trading_bot.config import ExecutorConfig, MarketDataConfig
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
