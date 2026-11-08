@@ -1,11 +1,14 @@
 from decimal import Decimal
+from pathlib import Path
 
 from binance import AsyncClient
 
 from trading_bot.adapters.binance_executor import BinanceExecutor
 from trading_bot.adapters.binance_market_data_source import BinanceMarketDataSource
-from trading_bot.adapters.binance_replay_market_data_source import BinanceReplayMarketDataSource
+from trading_bot.adapters.binance_rest_kline_mapper import map_rest_kline
+from trading_bot.adapters.historical_kline_loader import load_historical_klines
 from trading_bot.adapters.paper_executor import PaperExecutor
+from trading_bot.adapters.replay_market_data_source import ReplayMarketDataSource
 from trading_bot.config import ExecutorConfig, MarketDataConfig
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
@@ -16,11 +19,15 @@ from trading_bot.trading.debug_logger import TradingDebugLogger
 
 async def build_market_data_source(market_data_config: MarketDataConfig, instrument: Instrument) -> tuple[MarketDataSource, AsyncClient | None]:
     if market_data_config.market_data_source == "replay_binance":
-        market_data_source = BinanceReplayMarketDataSource(
-            symbol=instrument.symbol,
-            interval=market_data_config.interval,
+        project_root = Path(__file__).resolve().parents[2]
+        klines = load_historical_klines(
+            file_path=project_root / "data" / "binance" / f"{instrument.symbol}_{market_data_config.interval}.json",
+            mapper=map_rest_kline,
             initial_date=market_data_config.replay_initial_date,
             final_date=market_data_config.replay_final_date,
+        )
+        market_data_source = ReplayMarketDataSource(
+            klines=klines,
             delay_seconds=market_data_config.replay_delay_seconds
         )
         return market_data_source, None
