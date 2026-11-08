@@ -9,15 +9,22 @@ class InstrumentConfig:
     symbol: str
     base_asset: str
     quote_asset: str
+    interval: str
 
 
 @dataclass(frozen=True)
-class MarketDataConfig:
-    market_data_source: str
-    interval: str
-    replay_initial_date: str | None = None
-    replay_final_date: str | None = None
-    replay_delay_seconds: float | None = None
+class LiveConfig:
+    exchange: str | None
+    environment: str | None
+
+
+@dataclass(frozen=True)
+class ReplayConfig:
+    file_path: str | None
+    mapper: str | None
+    initial_date: str | None = None
+    final_date: str | None = None
+    delay_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -33,41 +40,72 @@ class ExecutorConfig:
 
 @dataclass(frozen=True)
 class RuntimeConfig:
+    mode: str
     instrument: InstrumentConfig
-    market_data: MarketDataConfig
+    live: LiveConfig
+    replay: ReplayConfig
     executor: ExecutorConfig
 
 
 def load_runtime_config() -> RuntimeConfig:
     load_dotenv()
 
-    market_data_source = os.getenv("MARKET_DATA_SOURCE")
+    mode = os.getenv("RUNTIME_MODE")
+    live_exchange = os.getenv("LIVE_EXCHANGE")
+    live_environment = os.getenv("LIVE_ENVIRONMENT")
+    replay_file_path = os.getenv("REPLAY_FILE_PATH")
+    replay_mapper = os.getenv("REPLAY_MAPPER")
+    replay_initial_date = os.getenv("REPLAY_INITIAL_DATE")
+    replay_final_date = os.getenv("REPLAY_FINAL_DATE")
     executor = os.getenv("EXECUTOR")
 
-    if market_data_source not in {"replay_binance", "binance_testnet", "binance_production"}:
-        raise ValueError(f"Unsupported market data source: {market_data_source}")
+    if mode not in {"live", "replay"}:
+        raise ValueError(f"Unsupported runtime mode: {mode}")
 
     if executor not in {"paper", "binance_testnet", "binance_production"}:
         raise ValueError(f"Unsupported executor: {executor}")
 
-    if market_data_source == "replay_binance" and executor != "paper":
-        raise ValueError("Replay market data can only be used with paper executor")
+    if mode == "live":
+        if live_exchange not in {"binance"}:
+            raise ValueError(f"Unsupported live exchange: {live_exchange}")
 
-    if market_data_source == "binance_testnet" and executor == "binance_production":
-        raise ValueError("Binance production executor cannot use Binance testnet market data")
+        if live_environment not in {"testnet", "production"}:
+            raise ValueError(f"Unsupported live environment: {live_environment}")
+
+        if live_exchange == "binance" and live_environment == "testnet" and executor == "binance_production":
+            raise ValueError("Binance production executor cannot use Binance testnet market data")
+
+    if mode == "replay":
+        if not replay_file_path:
+            raise ValueError("Replay file path is required")
+
+        if replay_mapper not in {"binance_rest"}:
+            raise ValueError(f"Unsupported replay mapper: {replay_mapper}")
+
+        if not replay_initial_date or not replay_final_date:
+            raise ValueError("Replay initial and final dates are required")
+
+        if executor != "paper":
+            raise ValueError("Replay market data can only be used with paper executor")
 
     return RuntimeConfig(
+        mode=mode,
         instrument=InstrumentConfig(
             symbol=os.getenv("SYMBOL"),
             base_asset=os.getenv("BASE_ASSET"),
             quote_asset=os.getenv("QUOTE_ASSET"),
-        ),
-        market_data=MarketDataConfig(
-            market_data_source=market_data_source,
             interval=os.getenv("INTERVAL"),
-            replay_initial_date=os.getenv("REPLAY_INITIAL_DATE"),
-            replay_final_date=os.getenv("REPLAY_FINAL_DATE"),
-            replay_delay_seconds=float(os.getenv("REPLAY_DELAY_SECONDS", "0")),
+        ),
+        live=LiveConfig(
+            exchange=live_exchange,
+            environment=live_environment,
+        ),
+        replay=ReplayConfig(
+            file_path=replay_file_path,
+            mapper=replay_mapper,
+            initial_date=replay_initial_date,
+            final_date=replay_final_date,
+            delay_seconds=float(os.getenv("REPLAY_DELAY_SECONDS") or "0"),
         ),
         executor=ExecutorConfig(
             executor=executor,
