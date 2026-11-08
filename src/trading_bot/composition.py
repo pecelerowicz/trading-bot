@@ -3,11 +3,19 @@ from decimal import Decimal
 from binance import AsyncClient
 
 from trading_bot.adapters.binance_executor import BinanceExecutor
-from trading_bot.adapters.binance_market_data_source import BinanceMarketDataSource
-from trading_bot.adapters.binance_rest_kline_mapper import map_rest_kline
-from trading_bot.adapters.historical_kline_loader import load_historical_klines
+from trading_bot.adapters.binance_market_data_source import (
+    BinanceMarketDataSource,
+)
+from trading_bot.adapters.binance_rest_kline_mapper import (
+    map_rest_kline,
+)
+from trading_bot.adapters.historical_kline_loader import (
+    load_historical_klines,
+)
 from trading_bot.adapters.paper_executor import PaperExecutor
-from trading_bot.adapters.replay_market_data_source import ReplayMarketDataSource
+from trading_bot.adapters.replay_market_data_source import (
+    ReplayMarketDataSource,
+)
 from trading_bot.config import (
     ExecutorConfig,
     InstrumentConfig,
@@ -32,7 +40,8 @@ async def build_market_data_source(
             mapper = map_rest_kline
         else:
             raise ValueError(
-                f"Unsupported replay mapper: {replay_config.mapper}"
+                f"Unsupported replay mapper: "
+                f"{replay_config.mapper}"
             )
 
         klines = load_historical_klines(
@@ -52,7 +61,14 @@ async def build_market_data_source(
     if runtime_mode == "live":
         if live_config.exchange != "binance":
             raise ValueError(
-                f"Unsupported live exchange: {live_config.exchange}"
+                f"Unsupported live exchange: "
+                f"{live_config.exchange}"
+            )
+
+        if live_config.mapper != "binance_websocket":
+            raise ValueError(
+                f"Unsupported live mapper: "
+                f"{live_config.mapper}"
             )
 
         market_data_client = await AsyncClient.create(
@@ -113,7 +129,8 @@ async def build_executor(
 
     else:
         raise ValueError(
-            f"Unsupported executor: {executor_config.executor}"
+            f"Unsupported executor: "
+            f"{executor_config.executor}"
         )
 
     executor_client = await AsyncClient.create(
