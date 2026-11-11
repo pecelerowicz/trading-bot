@@ -1,21 +1,30 @@
+import os
 from decimal import Decimal
+from pathlib import Path
 
 from binance import Client
+from dotenv import load_dotenv
 
 from scripts.binance_account_and_order_api import BinanceAccountAndOrderApi
 from scripts.binance_market_data_api import BinanceMarketDataApi
-from trading_bot.config import load_app_config
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    load_dotenv(PROJECT_ROOT / ".env")
 
-    app_config = load_app_config()
-    if app_config.executor == "binance_testnet":
-        client = Client(api_key=app_config.binance_api_key_testnet, api_secret=app_config.binance_api_secret_testnet, testnet=True)
-    elif app_config.executor == "binance_production":
-        client = Client(api_key=app_config.binance_api_key_production, api_secret=app_config.binance_api_secret_production, testnet=False)
-    else:
-        raise ValueError("account_and_orders.py requires Binance executor")
+    client = Client(
+        api_key=_get_required_env_var(
+            "BINANCE_API_KEY_TESTNET"
+        ),
+        api_secret=_get_required_env_var(
+            "BINANCE_API_SECRET_TESTNET"
+        ),
+        testnet=True,
+    )
+
     executor = BinanceAccountAndOrderApi(client=client)
     retriever = BinanceMarketDataApi(client=client)
 
@@ -37,35 +46,28 @@ def main():
     print("--- get_current_price ---")
     print(retriever.get_current_price("BTCUSDT"))
 
-    # # buy_limit_quantity
-    # print("--- buy_limit_quantity ---")
+    # buy_market_quantity
+    print("--- buy_market_quantity ---")
     print(executor.buy_market_quantity("BTCUSDT", Decimal("1.0")))
-    # executor.sell_market_quantity("SOLUSDT", Decimal("6"))
-    # executor.sell_market_quantity("PEPEUSDT", Decimal("18446"))
-    # executor.sell_market_quantity("ONDOUSDT", Decimal("1313"))
-    # executor.sell_market_quantity("LINKUSDT", Decimal("61"))
-    # executor.sell_market_quantity("XRPUSDT", Decimal("470"))
-
-
 
     # get_open_orders
     print("--- get_open_orders ---")
     print(executor.get_open_orders("BTCUSDT"))
-
 
     # get_balance
     print("--- get_balance ---")
     print(executor.get_balance("BTC"))
     print(executor.get_balance("USDT"))
 
-    # executor.cancel_order("BTCUSDT", 4792942)
-    # executor.cancel_order("BTCUSDT", 4792944)
-    # executor.cancel_order("BTCUSDT", 4792946)
-    # executor.cancel_order("BTCUSDT", 4792948)
-    # executor.cancel_order("BTCUSDT", 4792950)
-    # executor.cancel_order("BTCUSDT", 4792951)
-    # executor.cancel_order("BTCUSDT", 4792952)
-    # executor.cancel_order("BTCUSDT", 4792953)
+
+def _get_required_env_var(name: str) -> str:
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        raise ValueError(f"{name} is required")
+
+    return value.strip()
+
 
 if __name__ == "__main__":
     main()

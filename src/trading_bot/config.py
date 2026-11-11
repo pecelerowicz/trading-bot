@@ -1,62 +1,231 @@
 import os
 from dataclasses import dataclass
 from decimal import Decimal
+from pathlib import Path
+
 from dotenv import load_dotenv
 
 
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
 @dataclass(frozen=True)
-class AppConfig:
-    market_data_source: str
-    executor: str
+class InstrumentConfig:
     symbol: str
     base_asset: str
     quote_asset: str
     interval: str
-    paper_initial_base_balance: Decimal
-    paper_initial_quote_balance: Decimal
-
-    binance_api_key_testnet: str | None = None
-    binance_api_secret_testnet: str | None = None
-    binance_api_key_production: str | None = None
-    binance_api_secret_production: str | None = None
-
-    replay_initial_date: str | None = None
-    replay_final_date: str | None = None
-    replay_delay_seconds: float | None = None
 
 
-def load_app_config() -> AppConfig:
+@dataclass(frozen=True)
+class LiveSourceConfig:
+    exchange: str
+    environment: str
+    mapper: str
+
+
+@dataclass(frozen=True)
+class ReplaySourceConfig:
+    file_path: str
+    mapper: str
+    initial_date: str
+    final_date: str
+    delay_seconds: float = 0.0
+
+
+@dataclass(frozen=True)
+class PaperExecutorConfig:
+    initial_base_balance: Decimal
+    initial_quote_balance: Decimal
+
+
+@dataclass(frozen=True)
+class ExchangeExecutorConfig:
+    exchange: str
+    environment: str
+    api_key: str
+    api_secret: str
+
+
+@dataclass(frozen=True)
+class RuntimeConfig:
+    instrument: InstrumentConfig
+    source_config: LiveSourceConfig | ReplaySourceConfig
+    executor: PaperExecutorConfig | ExchangeExecutorConfig
+
+
+def load_runtime_config() -> RuntimeConfig:
     load_dotenv()
 
-    market_data_source = os.getenv("MARKET_DATA_SOURCE")
-    executor = os.getenv("EXECUTOR")
+    runtime_mode = _get_required_env_var("RUNTIME_MODE")
+    executor_type = _get_required_env_var("EXECUTOR")
 
-    if market_data_source not in {"replay_binance", "binance_testnet", "binance_production"}:
-        raise ValueError(f"Unsupported market data source: {market_data_source}")
+    if runtime_mode not in {"live", "replay"}:
+        raise ValueError(
+            f"Unsupported RUNTIME_MODE: {runtime_mode}"
+        )
 
-    if executor not in {"paper", "binance_testnet", "binance_production"}:
-        raise ValueError(f"Unsupported executor: {executor}")
+    if executor_type not in {"paper", "exchange"}:
+        raise ValueError(
+            f"Unsupported EXECUTOR: {executor_type}"
+        )
 
-    if market_data_source == "replay_binance" and executor != "paper":
-        raise ValueError("Replay market data can only be used with paper executor")
+    instrument = InstrumentConfig(
+        symbol=_get_required_env_var("SYMBOL"),
+        base_asset=_get_required_env_var("BASE_ASSET"),
+        quote_asset=_get_required_env_var("QUOTE_ASSET"),
+        interval=_get_required_env_var("INTERVAL"),
+    )
 
-    if market_data_source == "binance_testnet" and executor == "binance_production":
-        raise ValueError("Binance production executor cannot use Binance testnet market data")
+    if runtime_mode == "live":
+        source_config = _load_live_source_config()
+    else:
+        source_config = _load_replay_source_config()
 
-    return AppConfig(
-        market_data_source=market_data_source,
+        if executor_type != "paper":
+            raise ValueError(
+                "RUNTIME_MODE=replay requires EXECUTOR=paper"
+            )
+
+    if executor_type == "paper":
+        executor = _load_paper_executor_config()
+    else:
+        executor = _load_exchange_executor_config()
+
+    return RuntimeConfig(
+        instrument=instrument,
+        source_config=source_config,
         executor=executor,
-        symbol=os.getenv("SYMBOL"),
-        base_asset=os.getenv("BASE_ASSET"),
-        quote_asset=os.getenv("QUOTE_ASSET"),
-        interval=os.getenv("INTERVAL"),
-        paper_initial_base_balance=Decimal(os.getenv("PAPER_INITIAL_BASE_BALANCE", "0")),
-        paper_initial_quote_balance=Decimal(os.getenv("PAPER_INITIAL_QUOTE_BALANCE", "0")),
-        binance_api_key_testnet=os.getenv("BINANCE_API_KEY_TESTNET"),
-        binance_api_secret_testnet=os.getenv("BINANCE_API_SECRET_TESTNET"),
-        binance_api_key_production=os.getenv("BINANCE_API_KEY_PRODUCTION"),
-        binance_api_secret_production=os.getenv("BINANCE_API_SECRET_PRODUCTION"),
-        replay_initial_date=os.getenv("REPLAY_INITIAL_DATE"),
-        replay_final_date=os.getenv("REPLAY_FINAL_DATE"),
-        replay_delay_seconds=float(os.getenv("REPLAY_DELAY_SECONDS", "0")),
+    )
+
+
+def _load_live_source_config() -> LiveSourceConfig:
+    exchange = _get_required_env_var("LIVE_EXCHANGE")
+    environment = _get_required_env_var("LIVE_ENVIRONMENT")
+    mapper = _get_required_env_var("LIVE_MAPPER")
+
+    if exchange != "binance":
+        raise ValueError(
+            f"Unsupported LIVE_EXCHANGE: {exchange}"
+        )
+
+    if environment not in {"testnet", "production"}:
+        raise ValueError(
+            f"Unsupported LIVE_ENVIRONMENT: {environment}"
+        )
+
+    if mapper != "binance_websocket":
+        raise ValueError(
+            f"Unsupported LIVE_MAPPER: {mapper}"
+        )
+
+    return LiveSourceConfig(
+        exchange=exchange,
+        environment=environment,
+        mapper=mapper,
+    )
+
+
+def _load_replay_source_config() -> ReplaySourceConfig:
+    mapper = _get_required_env_var("REPLAY_MAPPER")
+
+    if mapper != "binance_rest":
+        raise ValueError(
+            f"Unsupported REPLAY_MAPPER: {mapper}"
+        )
+
+    return ReplaySourceConfig(
+        file_path=_project_path(
+            _get_required_env_var("REPLAY_FILE_PATH")
+        ),
+        mapper=mapper,
+        initial_date=_get_required_env_var(
+            "REPLAY_INITIAL_DATE"
+        ),
+        final_date=_get_required_env_var(
+            "REPLAY_FINAL_DATE"
+        ),
+        delay_seconds=float(
+            os.getenv("REPLAY_DELAY_SECONDS") or "0"
+        ),
+    )
+
+
+def _load_paper_executor_config() -> PaperExecutorConfig:
+    return PaperExecutorConfig(
+        initial_base_balance=_get_decimal_env_var(
+            "PAPER_INITIAL_BASE_BALANCE"
+        ),
+        initial_quote_balance=_get_decimal_env_var(
+            "PAPER_INITIAL_QUOTE_BALANCE"
+        ),
+    )
+
+
+def _load_exchange_executor_config() -> ExchangeExecutorConfig:
+    exchange = _get_required_env_var("EXECUTOR_EXCHANGE")
+    environment = _get_required_env_var("EXECUTOR_ENVIRONMENT")
+
+    if exchange != "binance":
+        raise ValueError(
+            f"Unsupported EXECUTOR_EXCHANGE: {exchange}"
+        )
+
+    if environment not in {"testnet", "production"}:
+        raise ValueError(
+            f"Unsupported EXECUTOR_ENVIRONMENT: {environment}"
+        )
+
+    if environment == "testnet":
+        api_key = _get_required_env_var(
+            "BINANCE_API_KEY_TESTNET"
+        )
+        api_secret = _get_required_env_var(
+            "BINANCE_API_SECRET_TESTNET"
+        )
+    else:
+        api_key = _get_required_env_var(
+            "BINANCE_API_KEY_PRODUCTION"
+        )
+        api_secret = _get_required_env_var(
+            "BINANCE_API_SECRET_PRODUCTION"
+        )
+
+    return ExchangeExecutorConfig(
+        exchange=exchange,
+        environment=environment,
+        api_key=api_key,
+        api_secret=api_secret,
+    )
+
+
+def _get_required_env_var(name: str) -> str:
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        raise ValueError(f"{name} is required")
+
+    return value.strip()
+
+
+def _get_decimal_env_var(
+    name: str,
+    default: str = "0",
+) -> Decimal:
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        value = default
+
+    return Decimal(value)
+
+
+def _project_path(value: str) -> str:
+    path = Path(value)
+
+    if path.is_absolute():
+        return str(path)
+
+    return str(
+        (PROJECT_ROOT / path).resolve()
     )
