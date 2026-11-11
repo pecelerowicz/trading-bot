@@ -36,17 +36,9 @@ async def build_market_data_source(
     replay_config: ReplayConfig,
 ) -> tuple[MarketDataSource, AsyncClient | None]:
     if runtime_mode == "replay":
-        if replay_config.mapper == "binance_rest":
-            mapper = map_rest_kline
-        else:
-            raise ValueError(
-                f"Unsupported replay mapper: "
-                f"{replay_config.mapper}"
-            )
-
         klines = load_historical_klines(
             file_path=replay_config.file_path,
-            mapper=mapper,
+            mapper=map_rest_kline,
             initial_date=replay_config.initial_date,
             final_date=replay_config.final_date,
         )
@@ -58,34 +50,17 @@ async def build_market_data_source(
 
         return market_data_source, None
 
-    if runtime_mode == "live":
-        if live_config.exchange != "binance":
-            raise ValueError(
-                f"Unsupported live exchange: "
-                f"{live_config.exchange}"
-            )
-
-        if live_config.mapper != "binance_websocket":
-            raise ValueError(
-                f"Unsupported live mapper: "
-                f"{live_config.mapper}"
-            )
-
-        market_data_client = await AsyncClient.create(
-            testnet=live_config.environment == "testnet",
-        )
-
-        market_data_source = BinanceMarketDataSource(
-            client=market_data_client,
-            symbol=instrument_config.symbol,
-            interval=instrument_config.interval,
-        )
-
-        return market_data_source, market_data_client
-
-    raise ValueError(
-        f"Unsupported runtime mode: {runtime_mode}"
+    market_data_client = await AsyncClient.create(
+        testnet=live_config.environment == "testnet",
     )
+
+    market_data_source = BinanceMarketDataSource(
+        client=market_data_client,
+        symbol=instrument_config.symbol,
+        interval=instrument_config.interval,
+    )
+
+    return market_data_source, market_data_client
 
 
 async def build_executor(
@@ -117,20 +92,24 @@ async def build_executor(
 
         return executor, None
 
-    if executor_config.executor == "binance_testnet":
-        api_key = executor_config.binance_api_key_testnet
-        api_secret = executor_config.binance_api_secret_testnet
-        testnet = True
+    testnet = (
+        executor_config.executor
+        == "binance_testnet"
+    )
 
-    elif executor_config.executor == "binance_production":
-        api_key = executor_config.binance_api_key_production
-        api_secret = executor_config.binance_api_secret_production
-        testnet = False
-
+    if testnet:
+        api_key = (
+            executor_config.binance_api_key_testnet
+        )
+        api_secret = (
+            executor_config.binance_api_secret_testnet
+        )
     else:
-        raise ValueError(
-            f"Unsupported executor: "
-            f"{executor_config.executor}"
+        api_key = (
+            executor_config.binance_api_key_production
+        )
+        api_secret = (
+            executor_config.binance_api_secret_production
         )
 
     executor_client = await AsyncClient.create(
