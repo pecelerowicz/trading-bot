@@ -17,10 +17,11 @@ from trading_bot.adapters.replay_market_data_source import (
     ReplayMarketDataSource,
 )
 from trading_bot.config import (
-    ExecutorConfig,
+    ExchangeExecutorConfig,
     InstrumentConfig,
-    LiveConfig,
-    ReplayConfig,
+    LiveSourceConfig,
+    PaperExecutorConfig,
+    ReplaySourceConfig,
 )
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
@@ -30,28 +31,26 @@ from trading_bot.trading.debug_logger import TradingDebugLogger
 
 
 async def build_market_data_source(
-    runtime_mode: str,
+    source_config: LiveSourceConfig | ReplaySourceConfig,
     instrument_config: InstrumentConfig,
-    live_config: LiveConfig,
-    replay_config: ReplayConfig,
 ) -> tuple[MarketDataSource, AsyncClient | None]:
-    if runtime_mode == "replay":
+    if isinstance(source_config, ReplaySourceConfig):
         klines = load_historical_klines(
-            file_path=replay_config.file_path,
+            file_path=source_config.file_path,
             mapper=map_rest_kline,
-            initial_date=replay_config.initial_date,
-            final_date=replay_config.final_date,
+            initial_date=source_config.initial_date,
+            final_date=source_config.final_date,
         )
 
         market_data_source = ReplayMarketDataSource(
             klines=klines,
-            delay_seconds=replay_config.delay_seconds,
+            delay_seconds=source_config.delay_seconds,
         )
 
         return market_data_source, None
 
     market_data_client = await AsyncClient.create(
-        testnet=live_config.environment == "testnet",
+        testnet=source_config.environment == "testnet",
     )
 
     market_data_source = BinanceMarketDataSource(
@@ -64,21 +63,21 @@ async def build_market_data_source(
 
 
 async def build_executor(
-    executor_config: ExecutorConfig,
+    executor_config: PaperExecutorConfig | ExchangeExecutorConfig,
     instrument: Instrument,
     logger: TradingDebugLogger,
 ) -> tuple[Executor, AsyncClient | None]:
-    if executor_config.executor == "paper":
+    if isinstance(executor_config, PaperExecutorConfig):
         initial_account = AccountSnapshot(
             balances=(
                 AssetBalance(
                     asset=instrument.base_asset,
-                    free=executor_config.paper_initial_base_balance,
+                    free=executor_config.initial_base_balance,
                     locked=Decimal("0"),
                 ),
                 AssetBalance(
                     asset=instrument.quote_asset,
-                    free=executor_config.paper_initial_quote_balance,
+                    free=executor_config.initial_quote_balance,
                     locked=Decimal("0"),
                 ),
             )
@@ -92,30 +91,10 @@ async def build_executor(
 
         return executor, None
 
-    testnet = (
-        executor_config.executor
-        == "binance_testnet"
-    )
-
-    if testnet:
-        api_key = (
-            executor_config.binance_api_key_testnet
-        )
-        api_secret = (
-            executor_config.binance_api_secret_testnet
-        )
-    else:
-        api_key = (
-            executor_config.binance_api_key_production
-        )
-        api_secret = (
-            executor_config.binance_api_secret_production
-        )
-
     executor_client = await AsyncClient.create(
-        api_key=api_key,
-        api_secret=api_secret,
-        testnet=testnet,
+        api_key=executor_config.api_key,
+        api_secret=executor_config.api_secret,
+        testnet=executor_config.environment == "testnet",
     )
 
     executor = BinanceExecutor(

@@ -1,22 +1,27 @@
+import os
 from decimal import Decimal
+from pathlib import Path
 
 from binance import Client
+from dotenv import load_dotenv
 
 from scripts.binance_account_and_order_api import BinanceAccountAndOrderApi
 from scripts.binance_market_data_api import BinanceMarketDataApi
-from trading_bot.config import load_runtime_config
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-
-    runtime_config = load_runtime_config()
-
-    if runtime_config.executor.executor != "binance_testnet":
-        raise ValueError("account_and_orders.py requires Binance testnet executor")
+    load_dotenv(PROJECT_ROOT / ".env")
 
     client = Client(
-        api_key=runtime_config.executor.binance_api_key_testnet,
-        api_secret=runtime_config.executor.binance_api_secret_testnet,
+        api_key=_get_required_env_var(
+            "BINANCE_API_KEY_TESTNET"
+        ),
+        api_secret=_get_required_env_var(
+            "BINANCE_API_SECRET_TESTNET"
+        ),
         testnet=True,
     )
 
@@ -53,6 +58,15 @@ def main():
     print("--- get_balance ---")
     print(executor.get_balance("BTC"))
     print(executor.get_balance("USDT"))
+
+
+def _get_required_env_var(name: str) -> str:
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        raise ValueError(f"{name} is required")
+
+    return value.strip()
 
 
 if __name__ == "__main__":

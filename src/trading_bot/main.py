@@ -34,10 +34,8 @@ async def main() -> None:
 
     try:
         market_data_source, market_data_client = await build_market_data_source(
-            runtime_mode=runtime_config.mode,
+            source_config=runtime_config.source_config,
             instrument_config=runtime_config.instrument,
-            live_config=runtime_config.live,
-            replay_config=runtime_config.replay,
         )
 
         executor, executor_client = await build_executor(
