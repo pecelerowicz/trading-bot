@@ -51,7 +51,7 @@ class ExchangeExecutorConfig:
 class RuntimeConfig:
     instrument: InstrumentConfig
     source_config: LiveSourceConfig | ReplaySourceConfig
-    executor: PaperExecutorConfig | ExchangeExecutorConfig
+    executor_config: PaperExecutorConfig | ExchangeExecutorConfig
 
 
 def load_runtime_config() -> RuntimeConfig:
@@ -88,14 +88,14 @@ def load_runtime_config() -> RuntimeConfig:
             )
 
     if executor_type == "paper":
-        executor = _load_paper_executor_config()
+        executor_config = _load_paper_executor_config()
     else:
-        executor = _load_exchange_executor_config()
+        executor_config = _load_exchange_executor_config()
 
     return RuntimeConfig(
         instrument=instrument,
         source_config=source_config,
-        executor=executor,
+        executor_config=executor_config,
     )
 
 

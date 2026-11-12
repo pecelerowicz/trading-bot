@@ -39,7 +39,7 @@ async def main() -> None:
         )
 
         executor, executor_client = await build_executor(
-            executor_config=runtime_config.executor,
+            executor_config=runtime_config.executor_config,
             instrument=instrument,
             logger=logger,
         )
