@@ -35,6 +35,12 @@ async def build_market_data_source(
     instrument_config: InstrumentConfig,
 ) -> tuple[MarketDataSource, AsyncClient | None]:
     if isinstance(source_config, ReplaySourceConfig):
+        if source_config.mapper != "binance_rest":
+            raise NotImplementedError(
+                f"Replay mapper '{source_config.mapper}' "
+                "is not implemented"
+            )
+
         klines = load_historical_klines(
             file_path=source_config.file_path,
             mapper=map_rest_kline,
@@ -49,17 +55,29 @@ async def build_market_data_source(
 
         return market_data_source, None
 
-    market_data_client = await AsyncClient.create(
-        testnet=source_config.environment == "testnet",
-    )
+    if source_config.exchange == "binance":
+        if source_config.mapper != "binance_websocket":
+            raise NotImplementedError(
+                f"Live mapper '{source_config.mapper}' "
+                "is not implemented"
+            )
 
-    market_data_source = BinanceMarketDataSource(
-        client=market_data_client,
-        symbol=instrument_config.symbol,
-        interval=instrument_config.interval,
-    )
+        market_data_client = await AsyncClient.create(
+            testnet=source_config.environment == "testnet",
+        )
 
-    return market_data_source, market_data_client
+        market_data_source = BinanceMarketDataSource(
+            client=market_data_client,
+            symbol=instrument_config.symbol,
+            interval=instrument_config.interval,
+        )
+
+        return market_data_source, market_data_client
+
+    raise NotImplementedError(
+        f"Live market data for exchange "
+        f"'{source_config.exchange}' is not implemented"
+    )
 
 
 async def build_executor(
@@ -91,15 +109,21 @@ async def build_executor(
 
         return executor, None
 
-    executor_client = await AsyncClient.create(
-        api_key=executor_config.api_key,
-        api_secret=executor_config.api_secret,
-        testnet=executor_config.environment == "testnet",
-    )
+    if executor_config.exchange == "binance":
+        executor_client = await AsyncClient.create(
+            api_key=executor_config.api_key,
+            api_secret=executor_config.api_secret,
+            testnet=executor_config.environment == "testnet",
+        )
 
-    executor = BinanceExecutor(
-        client=executor_client,
-        instrument=instrument,
-    )
+        executor = BinanceExecutor(
+            client=executor_client,
+            instrument=instrument,
+        )
 
-    return executor, executor_client
+        return executor, executor_client
+
+    raise NotImplementedError(
+        f"Execution for exchange "
+        f"'{executor_config.exchange}' is not implemented"
+    )

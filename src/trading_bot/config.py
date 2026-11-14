@@ -104,19 +104,11 @@ def _load_live_source_config() -> LiveSourceConfig:
     environment = _get_required_env_var("LIVE_ENVIRONMENT")
     mapper = _get_required_env_var("LIVE_MAPPER")
 
-    if exchange != "binance":
-        raise ValueError(
-            f"Unsupported LIVE_EXCHANGE: {exchange}"
-        )
+    _ensure_exchange_implemented(exchange)
 
     if environment not in {"testnet", "production"}:
         raise ValueError(
             f"Unsupported LIVE_ENVIRONMENT: {environment}"
-        )
-
-    if mapper != "binance_websocket":
-        raise ValueError(
-            f"Unsupported LIVE_MAPPER: {mapper}"
         )
 
     return LiveSourceConfig(
@@ -127,18 +119,11 @@ def _load_live_source_config() -> LiveSourceConfig:
 
 
 def _load_replay_source_config() -> ReplaySourceConfig:
-    mapper = _get_required_env_var("REPLAY_MAPPER")
-
-    if mapper != "binance_rest":
-        raise ValueError(
-            f"Unsupported REPLAY_MAPPER: {mapper}"
-        )
-
     return ReplaySourceConfig(
         file_path=_project_path(
             _get_required_env_var("REPLAY_FILE_PATH")
         ),
-        mapper=mapper,
+        mapper=_get_required_env_var("REPLAY_MAPPER"),
         initial_date=_get_required_env_var(
             "REPLAY_INITIAL_DATE"
         ),
@@ -166,30 +151,22 @@ def _load_exchange_executor_config() -> ExchangeExecutorConfig:
     exchange = _get_required_env_var("EXECUTOR_EXCHANGE")
     environment = _get_required_env_var("EXECUTOR_ENVIRONMENT")
 
-    if exchange != "binance":
-        raise ValueError(
-            f"Unsupported EXECUTOR_EXCHANGE: {exchange}"
-        )
+    _ensure_exchange_implemented(exchange)
 
     if environment not in {"testnet", "production"}:
         raise ValueError(
             f"Unsupported EXECUTOR_ENVIRONMENT: {environment}"
         )
 
-    if environment == "testnet":
-        api_key = _get_required_env_var(
-            "BINANCE_API_KEY_TESTNET"
-        )
-        api_secret = _get_required_env_var(
-            "BINANCE_API_SECRET_TESTNET"
-        )
-    else:
-        api_key = _get_required_env_var(
-            "BINANCE_API_KEY_PRODUCTION"
-        )
-        api_secret = _get_required_env_var(
-            "BINANCE_API_SECRET_PRODUCTION"
-        )
+    exchange_prefix = exchange.upper()
+    environment_suffix = environment.upper()
+
+    api_key = _get_required_env_var(
+        f"{exchange_prefix}_API_KEY_{environment_suffix}"
+    )
+    api_secret = _get_required_env_var(
+        f"{exchange_prefix}_API_SECRET_{environment_suffix}"
+    )
 
     return ExchangeExecutorConfig(
         exchange=exchange,
@@ -197,6 +174,13 @@ def _load_exchange_executor_config() -> ExchangeExecutorConfig:
         api_key=api_key,
         api_secret=api_secret,
     )
+
+
+def _ensure_exchange_implemented(exchange: str) -> None:
+    if exchange != "binance":
+        raise NotImplementedError(
+            f"Exchange '{exchange}' is not implemented"
+        )
 
 
 def _get_required_env_var(name: str) -> str:
