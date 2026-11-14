@@ -30,31 +30,10 @@ from trading_bot.ports.market_data_source import MarketDataSource
 from trading_bot.trading.debug_logger import TradingDebugLogger
 
 
-async def build_market_data_source(
-    source_config: LiveSourceConfig | ReplaySourceConfig,
+async def build_live_market_data_source(
+    source_config: LiveSourceConfig,
     instrument_config: InstrumentConfig,
-) -> tuple[MarketDataSource, AsyncClient | None]:
-    if isinstance(source_config, ReplaySourceConfig):
-        if source_config.mapper != "binance_rest":
-            raise NotImplementedError(
-                f"Replay mapper '{source_config.mapper}' "
-                "is not implemented"
-            )
-
-        klines = load_historical_klines(
-            file_path=source_config.file_path,
-            mapper=map_rest_kline,
-            initial_date=source_config.initial_date,
-            final_date=source_config.final_date,
-        )
-
-        market_data_source = ReplayMarketDataSource(
-            klines=klines,
-            delay_seconds=source_config.delay_seconds,
-        )
-
-        return market_data_source, None
-
+) -> tuple[MarketDataSource, AsyncClient]:
     if source_config.exchange == "binance":
         if source_config.mapper != "binance_websocket":
             raise NotImplementedError(
@@ -77,6 +56,28 @@ async def build_market_data_source(
     raise NotImplementedError(
         f"Live market data for exchange "
         f"'{source_config.exchange}' is not implemented"
+    )
+
+
+def build_replay_market_data_source(
+    source_config: ReplaySourceConfig,
+) -> ReplayMarketDataSource:
+    if source_config.mapper != "binance_rest":
+        raise NotImplementedError(
+            f"Replay mapper '{source_config.mapper}' "
+            "is not implemented"
+        )
+
+    klines = load_historical_klines(
+        file_path=source_config.file_path,
+        mapper=map_rest_kline,
+        initial_date=source_config.initial_date,
+        final_date=source_config.final_date,
+    )
+
+    return ReplayMarketDataSource(
+        klines=klines,
+        delay_seconds=source_config.delay_seconds,
     )
 
 

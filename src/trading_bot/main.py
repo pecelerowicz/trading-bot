@@ -1,7 +1,11 @@
 import asyncio
 
-from trading_bot.composition import build_executor, build_market_data_source
-from trading_bot.config import load_runtime_config
+from trading_bot.composition import (
+    build_executor,
+    build_live_market_data_source,
+    build_replay_market_data_source,
+)
+from trading_bot.config import LiveSourceConfig, load_runtime_config
 from trading_bot.models.instrument import Instrument
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import (
@@ -33,10 +37,17 @@ async def main() -> None:
     executor_client = None
 
     try:
-        market_data_source, market_data_client = await build_market_data_source(
-            source_config=runtime_config.source_config,
-            instrument_config=runtime_config.instrument,
-        )
+        if isinstance(runtime_config.source_config, LiveSourceConfig):
+            market_data_source, market_data_client = (
+                await build_live_market_data_source(
+                    source_config=runtime_config.source_config,
+                    instrument_config=runtime_config.instrument,
+                )
+            )
+        else:
+            market_data_source = build_replay_market_data_source(
+                source_config=runtime_config.source_config,
+            )
 
         executor, executor_client = await build_executor(
             executor_config=runtime_config.executor_config,
