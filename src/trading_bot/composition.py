@@ -1,7 +1,5 @@
 from decimal import Decimal
 
-from binance import AsyncClient
-
 from trading_bot.adapters.binance_executor import BinanceExecutor
 from trading_bot.adapters.binance_market_data_source import (
     BinanceMarketDataSource,
@@ -33,7 +31,7 @@ from trading_bot.trading.debug_logger import TradingDebugLogger
 async def build_live_market_data_source(
     source_config: LiveSourceConfig,
     instrument_config: InstrumentConfig,
-) -> tuple[MarketDataSource, AsyncClient]:
+) -> MarketDataSource:
     if source_config.exchange == "binance":
         if source_config.mapper != "binance_websocket":
             raise NotImplementedError(
@@ -41,18 +39,13 @@ async def build_live_market_data_source(
                 "is not implemented"
             )
 
-        market_data_client = await AsyncClient.create(
-            testnet=source_config.environment == "testnet",
-        )
-
-        market_data_source = BinanceMarketDataSource(
-            client=market_data_client,
+        return await BinanceMarketDataSource.create(
+            environment=source_config.environment,
             symbol=instrument_config.symbol,
             interval=instrument_config.interval,
         )
 
-        return market_data_source, market_data_client
-
+    # TODO: Add another exchange implementation here, e.g. Bybit.
     raise NotImplementedError(
         f"Live market data for exchange "
         f"'{source_config.exchange}' is not implemented"
@@ -85,7 +78,7 @@ async def build_executor(
     executor_config: PaperExecutorConfig | ExchangeExecutorConfig,
     instrument: Instrument,
     logger: TradingDebugLogger,
-) -> tuple[Executor, AsyncClient | None]:
+) -> Executor:
     if isinstance(executor_config, PaperExecutorConfig):
         initial_account = AccountSnapshot(
             balances=(
@@ -102,28 +95,19 @@ async def build_executor(
             )
         )
 
-        executor = PaperExecutor(
+        return PaperExecutor(
             logger=logger,
             instrument=instrument,
             initial_account=initial_account,
         )
 
-        return executor, None
-
     if executor_config.exchange == "binance":
-        executor_client = await AsyncClient.create(
-            api_key=executor_config.api_key,
-            api_secret=executor_config.api_secret,
-            testnet=executor_config.environment == "testnet",
-        )
-
-        executor = BinanceExecutor(
-            client=executor_client,
+        return await BinanceExecutor.create(
+            environment=executor_config.environment,
             instrument=instrument,
         )
 
-        return executor, executor_client
-
+    # TODO: Add another exchange implementation here, e.g. Bybit.
     raise NotImplementedError(
         f"Execution for exchange "
         f"'{executor_config.exchange}' is not implemented"

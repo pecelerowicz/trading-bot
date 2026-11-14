@@ -43,8 +43,6 @@ class PaperExecutorConfig:
 class ExchangeExecutorConfig:
     exchange: str
     environment: str
-    api_key: str
-    api_secret: str
 
 
 @dataclass(frozen=True)
@@ -104,8 +102,6 @@ def _load_live_source_config() -> LiveSourceConfig:
     environment = _get_required_env_var("LIVE_ENVIRONMENT")
     mapper = _get_required_env_var("LIVE_MAPPER")
 
-    _ensure_exchange_implemented(exchange)
-
     if environment not in {"testnet", "production"}:
         raise ValueError(
             f"Unsupported LIVE_ENVIRONMENT: {environment}"
@@ -151,36 +147,15 @@ def _load_exchange_executor_config() -> ExchangeExecutorConfig:
     exchange = _get_required_env_var("EXECUTOR_EXCHANGE")
     environment = _get_required_env_var("EXECUTOR_ENVIRONMENT")
 
-    _ensure_exchange_implemented(exchange)
-
     if environment not in {"testnet", "production"}:
         raise ValueError(
             f"Unsupported EXECUTOR_ENVIRONMENT: {environment}"
         )
 
-    exchange_prefix = exchange.upper()
-    environment_suffix = environment.upper()
-
-    api_key = _get_required_env_var(
-        f"{exchange_prefix}_API_KEY_{environment_suffix}"
-    )
-    api_secret = _get_required_env_var(
-        f"{exchange_prefix}_API_SECRET_{environment_suffix}"
-    )
-
     return ExchangeExecutorConfig(
         exchange=exchange,
         environment=environment,
-        api_key=api_key,
-        api_secret=api_secret,
     )
-
-
-def _ensure_exchange_implemented(exchange: str) -> None:
-    if exchange != "binance":
-        raise NotImplementedError(
-            f"Exchange '{exchange}' is not implemented"
-        )
 
 
 def _get_required_env_var(name: str) -> str:

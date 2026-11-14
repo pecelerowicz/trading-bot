@@ -1,4 +1,5 @@
 import asyncio
+import os
 from decimal import Decimal
 from typing import Any
 
@@ -24,6 +25,25 @@ class BinanceExecutor:
     def __init__(self, client: AsyncClient, instrument: Instrument) -> None:
         self._client = client
         self._instrument = instrument
+
+    @classmethod
+    async def create(cls, environment: str, instrument: Instrument) -> "BinanceExecutor":
+        environment_suffix = environment.upper()
+
+        api_key = _get_required_env_var(
+            f"BINANCE_API_KEY_{environment_suffix}"
+        )
+        api_secret = _get_required_env_var(
+            f"BINANCE_API_SECRET_{environment_suffix}"
+        )
+
+        client = await AsyncClient.create(
+            api_key=api_key,
+            api_secret=api_secret,
+            testnet=environment == "testnet",
+        )
+
+        return cls(client=client, instrument=instrument)
 
     async def update_executor(self, kline: KlineEvent) -> None:
         pass
@@ -208,3 +228,15 @@ class BinanceExecutor:
             free=Decimal("0"),
             locked=Decimal("0"),
         )
+
+    async def close(self) -> None:
+        await self._client.close_connection()
+
+
+def _get_required_env_var(name: str) -> str:
+    value = os.getenv(name)
+
+    if value is None or not value.strip():
+        raise ValueError(f"{name} is required")
+
+    return value.strip()

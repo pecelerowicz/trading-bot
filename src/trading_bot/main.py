@@ -28,48 +28,28 @@ async def main() -> None:
         quote_asset=runtime_config.instrument.quote_asset,
     )
 
-    strategy = ThreeGreenPyramidSellStrategy(
-        instrument=instrument,
-    )
+    strategy = ThreeGreenPyramidSellStrategy(instrument=instrument)
     logger = TradingDebugLogger()
 
-    market_data_client = None
-    executor_client = None
+    market_data_source = None
+    executor = None
 
     try:
         if isinstance(runtime_config.source_config, LiveSourceConfig):
-            market_data_source, market_data_client = (
-                await build_live_market_data_source(
-                    source_config=runtime_config.source_config,
-                    instrument_config=runtime_config.instrument,
-                )
-            )
+            market_data_source = await build_live_market_data_source(source_config=runtime_config.source_config,
+                                                                     instrument_config=runtime_config.instrument)
         else:
-            market_data_source = build_replay_market_data_source(
-                source_config=runtime_config.source_config,
-            )
+            market_data_source = build_replay_market_data_source(source_config=runtime_config.source_config)
 
-        executor, executor_client = await build_executor(
-            executor_config=runtime_config.executor_config,
-            instrument=instrument,
-            logger=logger,
-        )
+        executor = await build_executor(executor_config=runtime_config.executor_config, instrument=instrument,
+                                        logger=logger)
 
-        execution_service = TradingExecutionService(
-            executor=executor,
-            logger=logger,
-        )
+        execution_service = TradingExecutionService(executor=executor, logger=logger)
 
-        reconciliation_reporter = PortfolioReconciliationReporter(
-            executor=executor,
-            instrument=instrument,
-        )
+        reconciliation_reporter = PortfolioReconciliationReporter(executor=executor, instrument=instrument)
 
-        trading_session = TradingSession(
-            strategy=strategy,
-            execution_service=execution_service,
-            logger=logger,
-            reconciliation_reporter=reconciliation_reporter,
+        trading_session = TradingSession(strategy=strategy, execution_service=execution_service, logger=logger,
+                                         reconciliation_reporter=reconciliation_reporter,
         )
 
         app = TradingApp(
@@ -80,11 +60,18 @@ async def main() -> None:
         await app.run()
 
     finally:
-        if market_data_client is not None:
-            await market_data_client.close_connection()
+        await _close_if_needed(executor)
+        await _close_if_needed(market_data_source)
 
-        if executor_client is not None:
-            await executor_client.close_connection()
+
+async def _close_if_needed(resource: object | None) -> None:
+    if resource is None:
+        return
+
+    close = getattr(resource, "close", None)
+
+    if close is not None:
+        await close()
 
 
 if __name__ == "__main__":
