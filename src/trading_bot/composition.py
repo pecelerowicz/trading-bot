@@ -55,17 +55,19 @@ async def build_live_market_data_source(
 def build_replay_market_data_source(
     source_config: ReplaySourceConfig,
 ) -> ReplayMarketDataSource:
-    if source_config.mapper != "binance_rest":
+    historical_data = source_config.historical_data
+
+    if historical_data.mapper != "binance_rest":
         raise NotImplementedError(
-            f"Replay mapper '{source_config.mapper}' "
+            f"Replay mapper '{historical_data.mapper}' "
             "is not implemented"
         )
 
     klines = load_historical_klines(
-        file_path=source_config.file_path,
+        file_path=historical_data.file_path,
         mapper=map_rest_kline,
-        initial_date=source_config.initial_date,
-        final_date=source_config.final_date,
+        initial_date=historical_data.initial_date,
+        final_date=historical_data.final_date,
     )
 
     return ReplayMarketDataSource(

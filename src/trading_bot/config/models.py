@@ -27,10 +27,7 @@ class LiveSourceConfig:
 
 @dataclass(frozen=True)
 class ReplaySourceConfig:
-    file_path: str
-    mapper: str
-    initial_date: str
-    final_date: str
+    historical_data: HistoricalDataConfig
     delay_seconds: float = 0.0
 
 

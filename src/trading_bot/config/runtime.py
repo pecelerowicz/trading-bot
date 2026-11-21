@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from trading_bot.config.models import (
     ExchangeExecutorConfig,
+    HistoricalDataConfig,
     InstrumentConfig,
     LiveSourceConfig,
     PaperExecutorConfig,
@@ -80,7 +81,7 @@ def _load_live_source_config() -> LiveSourceConfig:
 
 
 def _load_replay_source_config() -> ReplaySourceConfig:
-    return ReplaySourceConfig(
+    historical_data = HistoricalDataConfig(
         file_path=_project_path(
             _get_required_env_var("REPLAY_FILE_PATH")
         ),
@@ -91,6 +92,10 @@ def _load_replay_source_config() -> ReplaySourceConfig:
         final_date=_get_required_env_var(
             "REPLAY_FINAL_DATE"
         ),
+    )
+
+    return ReplaySourceConfig(
+        historical_data=historical_data,
         delay_seconds=float(
             os.getenv("REPLAY_DELAY_SECONDS") or "0"
         ),
