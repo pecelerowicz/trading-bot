@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 from trading_bot.config import (
     InstrumentConfig,
     PaperExecutorConfig,
-    ReplaySourceConfig,
 )
 
 
@@ -16,9 +15,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 @dataclass(frozen=True)
+class HistoricalDataConfig:
+    file_path: str
+    mapper: str
+    initial_date: str
+    final_date: str
+
+
+@dataclass(frozen=True)
 class BacktestConfig:
     instrument: InstrumentConfig
-    source_config: ReplaySourceConfig
+    historical_data: HistoricalDataConfig
     executor_config: PaperExecutorConfig
 
 
@@ -32,18 +39,17 @@ def load_backtest_config() -> BacktestConfig:
         interval=_get_required_env_var("INTERVAL"),
     )
 
-    source_config = ReplaySourceConfig(
+    historical_data = HistoricalDataConfig(
         file_path=_project_path(
-            _get_required_env_var("REPLAY_FILE_PATH")
+            _get_required_env_var("HISTORICAL_FILE_PATH")
         ),
-        mapper=_get_required_env_var("REPLAY_MAPPER"),
+        mapper=_get_required_env_var("HISTORICAL_MAPPER"),
         initial_date=_get_required_env_var(
-            "REPLAY_INITIAL_DATE"
+            "HISTORICAL_INITIAL_DATE"
         ),
         final_date=_get_required_env_var(
-            "REPLAY_FINAL_DATE"
+            "HISTORICAL_FINAL_DATE"
         ),
-        delay_seconds=0.0,
     )
 
     executor_config = PaperExecutorConfig(
@@ -57,7 +63,7 @@ def load_backtest_config() -> BacktestConfig:
 
     return BacktestConfig(
         instrument=instrument,
-        source_config=source_config,
+        historical_data=historical_data,
         executor_config=executor_config,
     )
 
