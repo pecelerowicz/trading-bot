@@ -12,4 +12,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src ./src
 COPY data ./data
 
-CMD ["python", "-m", "trading_bot.main"]
+CMD ["python", "-m", "trading_bot.main_runtime"]

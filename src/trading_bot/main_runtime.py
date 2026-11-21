@@ -15,7 +15,7 @@ from trading_bot.trading.portfolio_reconciliation_reporter import (
 from trading_bot.trading.three_green_pyramid_sell_strategy import (
     ThreeGreenPyramidSellStrategy,
 )
-from trading_bot.trading.trading_app import TradingApp
+from trading_bot.runtime.app import TradingApp
 from trading_bot.trading.trading_execution_service import TradingExecutionService
 from trading_bot.trading.trading_session import TradingSession
 
