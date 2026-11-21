@@ -16,6 +16,7 @@ from trading_bot.adapters.replay_market_data_source import (
 )
 from trading_bot.config.models import (
     ExchangeExecutorConfig,
+    HistoricalDataConfig,
     InstrumentConfig,
     LiveSourceConfig,
     PaperExecutorConfig,
@@ -23,6 +24,7 @@ from trading_bot.config.models import (
 )
 from trading_bot.models.account import AccountSnapshot, AssetBalance
 from trading_bot.models.instrument import Instrument
+from trading_bot.models.kline_event import KlineEvent
 from trading_bot.ports.executor import Executor
 from trading_bot.ports.market_data_source import MarketDataSource
 from trading_bot.trading.debug_logger import TradingDebugLogger
@@ -52,22 +54,28 @@ async def build_live_market_data_source(
     )
 
 
-def build_replay_market_data_source(
-    source_config: ReplaySourceConfig,
-) -> ReplayMarketDataSource:
-    historical_data = source_config.historical_data
-
+def load_historical_market_data(
+    historical_data: HistoricalDataConfig,
+) -> list[KlineEvent]:
     if historical_data.mapper != "binance_rest":
         raise NotImplementedError(
-            f"Replay mapper '{historical_data.mapper}' "
+            f"Historical mapper '{historical_data.mapper}' "
             "is not implemented"
         )
 
-    klines = load_historical_klines(
+    return load_historical_klines(
         file_path=historical_data.file_path,
         mapper=map_rest_kline,
         initial_date=historical_data.initial_date,
         final_date=historical_data.final_date,
+    )
+
+
+def build_replay_market_data_source(
+    source_config: ReplaySourceConfig,
+) -> ReplayMarketDataSource:
+    klines = load_historical_market_data(
+        historical_data=source_config.historical_data,
     )
 
     return ReplayMarketDataSource(
