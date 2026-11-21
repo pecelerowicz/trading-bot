@@ -5,7 +5,8 @@ from trading_bot.composition import (
     build_live_market_data_source,
     build_replay_market_data_source,
 )
-from trading_bot.config import LiveSourceConfig, load_runtime_config
+from trading_bot.config.models import LiveSourceConfig
+from trading_bot.config.runtime import load_runtime_config
 from trading_bot.models.instrument import Instrument
 from trading_bot.trading.debug_logger import TradingDebugLogger
 from trading_bot.trading.portfolio_reconciliation_reporter import (

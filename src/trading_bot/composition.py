@@ -14,7 +14,7 @@ from trading_bot.adapters.paper_executor import PaperExecutor
 from trading_bot.adapters.replay_market_data_source import (
     ReplayMarketDataSource,
 )
-from trading_bot.config import (
+from trading_bot.config.models import (
     ExchangeExecutorConfig,
     InstrumentConfig,
     LiveSourceConfig,
